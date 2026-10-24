@@ -8,9 +8,9 @@ The installed config and global ignore file are package-local; [build.md](build.
 
 ## Release tag and npm trust
 
-`.github/workflows/release.yaml` runs on a pushed `vX.Y.Z` tag. Its manual `workflow_dispatch` input also requires an existing tag. Validation confirms that the tag points to the checked-out commit, matches `package.json` and the root `package-lock.json` entry, targets this GitHub repository and the public npm registry, and names a version that has not already been published. Branch names, prerelease suffixes, and Core/CLI suffixes fail validation.
+`.github/workflows/release.yml` runs on a pushed `vX.Y.Z` tag. Its manual `workflow_dispatch` input also requires an existing tag. Validation confirms that the tag points to the checked-out commit, matches `package.json` and the root `package-lock.json` entry, targets this GitHub repository and the public npm registry, and names a version that has not already been published. Branch names, prerelease suffixes, and Core/CLI suffixes fail validation.
 
-The npm trusted publisher must name GitHub owner `JeongHan-Bae`, repository `pathsift`, and workflow filename `release.yaml` exactly, with direct `npm publish` allowed. The publish job receives `id-token: write`, uses a GitHub-hosted Ubuntu runner with Node 26 and a compatible npm CLI, and publishes through OIDC without a stored npm write token. npm automatically creates provenance when the repository and package are public. See [npm trusted publishing](https://docs.npmjs.com/trusted-publishers/) for the current requirements.
+The npm trusted publisher must name GitHub owner `JeongHan-Bae`, repository `pathsift`, and workflow filename `release.yml` exactly, with direct `npm publish` allowed. The publish job receives `id-token: write`, uses a GitHub-hosted Ubuntu runner with Node 26 and a compatible npm CLI, and publishes through OIDC without a stored npm write token. npm automatically creates provenance when the repository and package are public. The first publish failed because the workflow was named `release.yaml` while npm trusted `release.yml`; the filename now matches. See [npm trusted publishing](https://docs.npmjs.com/trusted-publishers/) for the current requirements.
 
 ## Pipeline
 

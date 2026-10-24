@@ -36,7 +36,7 @@ Each empty-parent matrix case also checks `--parent ""`, bare `--parent`, `--par
 
 Automatic push and pull-request CI runs only when `bin/`, `scripts/`, `src/`, `test/`, or `.github/workflows/ci.yml` changes. `workflow_dispatch` remains available for a manual run. Documentation-only and manifest-only changes still require the local contribution gate before a commit.
 
-`.github/workflows/release.yaml` requires an existing `vX.Y.Z` tag and calls this CI matrix at that commit. Normal path filters do not skip this release call. [Release readiness](release.md) owns tag validation, trusted publishing, and artifact checks.
+`.github/workflows/release.yml` requires an existing `vX.Y.Z` tag and calls this CI matrix at that commit. Normal path filters do not skip this release call. [Release readiness](release.md) owns tag validation, trusted publishing, and artifact checks.
 
 Child commands in the maintenance and test runners use asynchronous execution with explicit timeouts. `check:dependencies` runs the runtime and full audits separately with a two-minute deadline for each; release validation bounds each npm and Git command without registry polling.
 

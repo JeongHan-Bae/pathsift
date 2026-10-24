@@ -178,7 +178,7 @@ npm run verify:release   # all checks, dependency audits, package contents
 
 The generated, Git-ignored `release-preview/` contains `pathsift-<version>.tgz`, an extracted `package/` tree, and `pack-metadata.json`. `dist/` contains only compiled JavaScript; inspect `release-preview/package/` to see the actual files that npm would publish, including the short README from `docs/npm-readme.md`. The repository root is private, so publish the reviewed tarball rather than packing the root. Runtime dependencies are installed separately by npm and are not bundled in this tarball.
 
-Formal releases use an existing `vX.Y.Z` tag. The [release workflow](.github/workflows/release.yaml) validates the tag and package, runs the full CI matrix, and publishes the staged tarball to npm `latest` through trusted publishing. See [release readiness](docs/release.md) for the tag and artifact contract.
+Formal releases use an existing `vX.Y.Z` tag. The [release workflow](.github/workflows/release.yml) validates the tag and package, runs the full CI matrix, and publishes the staged tarball to npm `latest` through trusted publishing. See [release readiness](docs/release.md) for the tag and artifact contract.
 
 Every path-processing command has its own BDD file covering the five ignore cases crossed with all three parent modes. CI runs the release gate on Node 22.12, 23, 24, and 26. Dependency audits and the package
 installation check need npm registry access.

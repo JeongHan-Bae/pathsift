@@ -76,4 +76,4 @@ Do not list a focused check as a replacement for the final gate. Markdown headin
 
 ## Review and handoff
 
-Before handoff, report the changed files and contracts, the exact final gate result, useful focused checks, unavailable checks and their risk, and intentionally uncommitted work. Reviewers should be able to identify the owning contract, the tests proving it, and the documentation describing it. Formal publication is tag-driven through `.github/workflows/release.yaml` and governed by [docs/release.md](docs/release.md).
+Before handoff, report the changed files and contracts, the exact final gate result, useful focused checks, unavailable checks and their risk, and intentionally uncommitted work. Reviewers should be able to identify the owning contract, the tests proving it, and the documentation describing it. Formal publication is tag-driven through `.github/workflows/release.yml` and governed by [docs/release.md](docs/release.md).
