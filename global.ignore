@@ -1,0 +1,5 @@
+# Global defaults for pathsift. Edit with: pathsift nano
+# Examples (uncomment to enable):
+# .git/
+# node_modules/
+# *.tmp

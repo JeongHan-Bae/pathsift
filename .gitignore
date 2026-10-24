@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.idea/
+*.tgz
+*.log
+.DS_Store
+release-preview/
+.pathsift-preview-*/

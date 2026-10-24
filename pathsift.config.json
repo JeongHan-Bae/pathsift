@@ -1,0 +1,6 @@
+{
+  "ignoreFiles": [".gitignore"],
+  "globalIgnore": "global.ignore",
+  "hashVersion": 1,
+  "bufferLimitBytes": 1073741824
+}
