@@ -140,24 +140,9 @@ directory entries; its apparent-size mode is a separate option. See the [GNU
 
 ### `hash`
 
-`hash` computes `name_hash = SHA-256(UTF-8 relative filename)` and `content_hash = SHA-256(file bytes)`, then
-`file_hash = SHA-256("pathsift-file-v1:" || name_hash || content_hash)` for each visible regular file. It sorts files
-by UTF-8 relative filename and computes
-`tree_hash = SHA-256("pathsift-tree-v1:" || file_count || ":" || file_hash_1 || file_hash_2 || ...)`. Each component
-digest is a fixed 64-character lowercase hex value; the domain tags and count separate these two levels.
+`hash` combines each visible regular file's relative name and content digest, then combines file hashes in stable name order. Its output has `file-sha256  digest  relative/path` lines followed by `tree-sha256  digest  absolute/root`. A rename or moving bytes across files changes the digest, subject to SHA-256 collision resistance. The selected scan directory defines relative names; moving an unchanged tree under a different parent preserves its digest. `--parent` changes visibility while keeping that base.
 
-Output lines are `file-sha256  digest  relative/path`, followed by `tree-sha256  digest  absolute/root`. A visible file rename
-changes its name hash, file hash, and tree hash; moving bytes across visible file boundaries changes the affected
-content and file hashes even if concatenating both files would yield the same bytes.
-
-The base is the directory passed to `pathsift hash [directory]` (or the current working directory when omitted), not the CLI executable or package
-directory. That base path is not hashed: moving an unchanged `a/` tree to `b/` yields the same digest because all
-internal relative paths remain the same. Likewise, `hash a/` from `x/` and `hash ./` from `x/a/` select the same base
-and yield the same digest.
-
-Empty directories, symlinks, and ignored files are outside this file-only digest. SHA-256
-offers collision resistance, not a mathematical no-collision guarantee. The full encoding and collision argument are
-in [the hash contract](docs/hash.md). Bash's `hash` builtin instead manages the shell's command lookup cache. See
+[The hash contract](docs/hash.md) owns the exact encoding, structural examples, and limitations. Bash's `hash` builtin instead manages the shell's command lookup cache. See
 the [Bash builtin manual](https://www.gnu.org/software/bash/manual/html_node/Bourne-Shell-Builtins.html).
 
 ## Output, export, and editor behavior
@@ -192,6 +177,8 @@ npm run verify:release   # all checks, dependency audits, package contents
 ```
 
 The generated, Git-ignored `release-preview/` contains `pathsift-<version>.tgz`, an extracted `package/` tree, and `pack-metadata.json`. `dist/` contains only compiled JavaScript; inspect `release-preview/package/` to see the actual files that npm would publish, including the short README from `docs/npm-readme.md`. The repository root is private, so publish the reviewed tarball rather than packing the root. Runtime dependencies are installed separately by npm and are not bundled in this tarball.
+
+Formal releases use an existing `vX.Y.Z` tag. The [release workflow](.github/workflows/release.yaml) validates the tag and package, runs the full CI matrix, and publishes the staged tarball to npm `latest` through trusted publishing. See [release readiness](docs/release.md) for the tag and artifact contract.
 
 Every path-processing command has its own BDD file covering the five ignore cases crossed with all three parent modes. CI runs the release gate on Node 22.12, 23, 24, and 26. Dependency audits and the package
 installation check need npm registry access.

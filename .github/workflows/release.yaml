@@ -1,0 +1,84 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Existing vX.Y.Z tag to publish'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ inputs.release_tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Validate release tag and npm version
+    runs-on: ubuntu-latest
+    env:
+      RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
+    outputs:
+      tag: ${{ steps.release.outputs.tag }}
+      version: ${{ steps.release.outputs.version }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.release_tag || github.ref }}
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '26'
+          registry-url: https://registry.npmjs.org
+      - run: npm ci
+      - name: Validate tag, package metadata, lockfile, and registry state
+        id: release
+        timeout-minutes: 5
+        run: node scripts/validate-release.mjs "$RELEASE_TAG"
+
+  ci:
+    name: Release CI gate
+    needs: validate
+    uses: ./.github/workflows/ci.yml
+    with:
+      release_ref: ${{ needs.validate.outputs.tag }}
+    permissions:
+      contents: read
+
+  publish:
+    name: Publish pathsift to npm
+    needs: [validate, ci]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      RELEASE_TAG: ${{ needs.validate.outputs.tag }}
+      RELEASE_VERSION: ${{ needs.validate.outputs.version }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.validate.outputs.tag }}
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '26'
+          registry-url: https://registry.npmjs.org
+      - run: npm ci
+      - name: Recheck registry version before building
+        timeout-minutes: 5
+        run: node scripts/validate-release.mjs "$RELEASE_TAG"
+      - name: Build and verify the exact release tarball
+        run: npm run verify:release
+      - name: Validate tarball identity and contents
+        run: node scripts/validate-release-artifact.mjs "$RELEASE_VERSION"
+      - name: Publish with npm trusted publishing
+        timeout-minutes: 10
+        run: npm publish "./release-preview/pathsift-${RELEASE_VERSION}.tgz" --tag latest --access public --registry=https://registry.npmjs.org/

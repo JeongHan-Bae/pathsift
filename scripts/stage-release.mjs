@@ -1,9 +1,9 @@
 import { mkdtemp, mkdir, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises';
-import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { x as extractTar } from 'tar';
 import { preparePackage } from './package-artifact.mjs';
+import { runCommand } from './run-command.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const preview = path.join(root, 'release-preview');
@@ -25,10 +25,7 @@ async function packedFiles(directory, prefix = '') {
 const staging = await mkdtemp(path.join(root, '.pathsift-preview-'));
 try {
   const packageInput = await preparePackage(staging);
-  const result = spawnSync(process.execPath, [npmCli, 'pack', '--json', '--pack-destination', staging], {
-    cwd: packageInput, encoding: 'utf8'
-  });
-  if (result.error) throw result.error;
+  const result = await runCommand(process.execPath, [npmCli, 'pack', '--json', '--pack-destination', staging], { cwd: packageInput, timeoutMs: 60000 });
   if (result.status !== 0) throw new Error(`npm pack failed:\n${result.stdout}\n${result.stderr}`);
   const [packed] = JSON.parse(result.stdout);
   if (!packed?.filename || !Array.isArray(packed.files)) throw new Error('npm pack returned invalid metadata');

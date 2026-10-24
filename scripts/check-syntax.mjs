@@ -1,7 +1,7 @@
 import { readdir } from 'node:fs/promises';
-import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { runCommand } from './run-command.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const files = [];
@@ -14,7 +14,7 @@ async function collect(folder) {
 }
 for (const folder of ['bin', 'scripts', 'test']) await collect(path.join(root, folder));
 for (const file of files) {
-  const result = spawnSync(process.execPath, ['--check', file], { encoding: 'utf8' });
+  const result = await runCommand(process.execPath, ['--check', file], { cwd: root, timeoutMs: 15000 });
   if (result.status !== 0) throw new Error(`${path.relative(root, file)} syntax check failed:\n${result.stderr}`);
 }
 console.log(`JavaScript syntax checks passed (${files.length} files).`);

@@ -22,7 +22,6 @@
   "type": "module",
   "publishConfig": {
     "access": "public",
-    "tag": "alpha",
     "registry": "https://registry.npmjs.org/"
   },
   "bin": {
@@ -40,7 +39,7 @@
     "test:package": "npm run build && node scripts/run-package-tests.mjs",
     "test:bdd": "npm run test:compiled",
     "test": "npm run test:tdd && npm run test:source && npm run test:compiled",
-    "check:dependencies": "npm audit --omit=dev --audit-level=moderate && npm audit --audit-level=moderate",
+    "check:dependencies": "node scripts/check-dependencies.mjs",
     "verify:release": "npm run check:static && npm test && npm run test:package && npm run check:dependencies && npm run check:package && npm run stage:release",
     "verify:precommit": "npm run verify:release && git diff --check && git diff --cached --check",
     "prepack": "node scripts/guard-root-package.mjs",

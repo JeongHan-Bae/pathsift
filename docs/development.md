@@ -36,6 +36,10 @@ Each empty-parent matrix case also checks `--parent ""`, bare `--parent`, `--par
 
 Automatic push and pull-request CI runs only when `bin/`, `scripts/`, `src/`, `test/`, or `.github/workflows/ci.yml` changes. `workflow_dispatch` remains available for a manual run. Documentation-only and manifest-only changes still require the local contribution gate before a commit.
 
+`.github/workflows/release.yaml` requires an existing `vX.Y.Z` tag and calls this CI matrix at that commit. Normal path filters do not skip this release call. [Release readiness](release.md) owns tag validation, trusted publishing, and artifact checks.
+
+Child commands in the maintenance and test runners use asynchronous execution with explicit timeouts. `check:dependencies` runs the runtime and full audits separately with a two-minute deadline for each; release validation bounds each npm and Git command without registry polling.
+
 Run `npm run verify:precommit` after the final file edit and before each commit. It runs the full release gate, then `git diff --check` and `git diff --cached --check`. Focused checks and an earlier gate run do not replace it. Stage only the intended files and inspect both diff views before committing. The exact commit-message and pull-request formats are in [CONTRIBUTING.md](../CONTRIBUTING.md).
 
 `npm audit` and the package installation test need npm registry access. A network-restricted sandbox failure leaves those checks unverified; it does not establish a host DNS fault. Use a writable npm cache if the default cache is not writable. See [build.md](build.md) for artifact contents and [release.md](release.md) for publication readiness.

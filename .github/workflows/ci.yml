@@ -16,6 +16,11 @@ on:
       - 'test/**'
       - '.github/workflows/ci.yml'
   workflow_dispatch:
+  workflow_call:
+    inputs:
+      release_ref:
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -29,6 +34,8 @@ jobs:
         node: ['22.12.0', '23', '24', '26']
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.release_ref || github.ref }}
       - uses: actions/setup-node@v5
         with:
           node-version: ${{ matrix.node }}
@@ -45,6 +52,8 @@ jobs:
         node: ['22.12.0', '26']
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.release_ref || github.ref }}
       - uses: actions/setup-node@v5
         with:
           node-version: ${{ matrix.node }}

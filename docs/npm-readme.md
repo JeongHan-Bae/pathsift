@@ -4,14 +4,14 @@ Inspect, copy, and archive directory trees locally with Git-style ignore rules.
 
 ## Install
 
-Use Node.js 22.12 or later. Install the published alpha channel globally:
+Use Node.js 22.12 or later. Install the published package globally:
 
 ```sh
-npm install --global pathsift@alpha
+npm install --global pathsift
 pathsift --help
 ```
 
-For a project-local installation, run `npm install pathsift@alpha` and invoke `npx pathsift` from that project. npm's `alpha` is a dist-tag; it is separate from the package version number.
+For a project-local installation, run `npm install pathsift` and invoke `npx pathsift` from that project. The earlier alpha channel remains available as `pathsift@alpha`.
 
 ## Commands
 

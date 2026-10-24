@@ -1,9 +1,9 @@
 import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
-import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { preparePackage } from './package-artifact.mjs';
+import { runCommand } from './run-command.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const npmCli = process.env.npm_execpath;
@@ -20,8 +20,7 @@ async function distFiles(directory, prefix = 'dist') {
 const sandbox = await mkdtemp(path.join(tmpdir(), 'pathsift-package-check-'));
 try {
   const directory = await preparePackage(sandbox);
-  const result = spawnSync(process.execPath, [npmCli, 'pack', '--dry-run', '--json'], { cwd: directory, encoding: 'utf8' });
-  if (result.error) throw result.error;
+  const result = await runCommand(process.execPath, [npmCli, 'pack', '--dry-run', '--json'], { cwd: directory, timeoutMs: 60000 });
   if (result.status !== 0) throw new Error(`npm pack failed:\n${result.stderr}`);
   const [preview] = JSON.parse(result.stdout);
   const actual = preview.files.map(file => file.path).sort();
