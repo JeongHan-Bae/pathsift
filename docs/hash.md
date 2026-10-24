@@ -1,6 +1,6 @@
 # Directory hash contract
 
-`pathsift hash` creates a two-level SHA-256 fingerprint of **visible regular files**. The format is `hashVersion: 1` in the package's `pathsift.config.json`; the CLI rejects any other value. This is the first format of the development-stage CLI. It is a path-sensitive snapshot, not a replacement for `sha256sum` or the shell's `hash` command.
+`pathsift hash` creates a two-level SHA-256 fingerprint of **visible regular files**. The format is `hashVersion: 1` in the package's `pathsift.config.json`; the CLI rejects any other value. This is the first format of the development-stage CLI. It creates a path-sensitive snapshot using pathsift's own encoding.
 
 For each file, let `p` be its UTF-8 relative path from the directory supplied to `pathsift hash [directory]` (or the current working directory when omitted) and `bytes` be its raw contents:
 
@@ -18,7 +18,7 @@ Sort visible files by the UTF-8 bytes of `p`. Let their file hashes in that orde
 tree_hash = SHA-256(UTF-8("pathsift-tree-v1:" || n || ":") || hex(F1) || ... || hex(Fn))
 ```
 
-The file count and fixed-length hashes make this sequence encoding unambiguous. Sorting makes the result independent of filesystem enumeration order. The CLI executable location does not define this base. The absolute scanned root path is printed for context but is not hashed, so copying an unchanged visible tree to another location preserves its digest.
+The file count and fixed-length hashes make this sequence encoding unambiguous. Sorting makes the result independent of filesystem enumeration order. The selected scan root defines the relative-path base. The absolute scanned root path is printed for context but is not hashed, so copying an unchanged visible tree to another location preserves its digest.
 
 ## Why structural edits change the input
 

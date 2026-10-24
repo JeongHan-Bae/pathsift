@@ -21,8 +21,8 @@ The checked-in `pathsift.config.json` and `global.ignore` live beside the packag
 | `npm run test:package` | Pack, install, and run the same BDD against the installed package |
 | `npm test` | TDD plus source and compiled BDD |
 | `npm run check:dependencies` | Separate runtime and full npm advisory audits |
-| `npm run check:package` | Check exact compiled package file list |
-| `npm run stage:release` | Build and unpack the real npm archive into ignored `release-preview/` |
+| `npm run check:package` | Check exact production file list, npm README, and manifest fields |
+| `npm run stage:release` | Build, pack the generated publishable directory, and unpack into ignored `release-preview/` |
 | `npm run verify:release` | Static, all three behavior layers, audits, package contents, and release preview |
 | `npm run verify:precommit` | Mandatory final contribution gate: release gate, then staged and unstaged Git whitespace checks |
 

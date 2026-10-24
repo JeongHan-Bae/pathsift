@@ -3,6 +3,7 @@ import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import { preparePackage } from './package-artifact.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const npmCli = process.env.npm_execpath;
@@ -15,7 +16,8 @@ try {
     if (result.status !== 0) throw new Error(`npm ${args.join(' ')} failed:\n${result.stdout}\n${result.stderr}`);
     return result.stdout;
   };
-  const [packed] = JSON.parse(runNpm(['pack', '--json', '--ignore-scripts', '--pack-destination', sandbox]));
+  const packageInput = await preparePackage(sandbox);
+  const [packed] = JSON.parse(runNpm(['pack', '--json', '--pack-destination', sandbox], { cwd: packageInput }));
   const tarball = path.join(sandbox, packed.filename);
   const consumer = path.join(sandbox, 'consumer');
   runNpm(['install', '--prefix', consumer, '--omit=dev', '--ignore-scripts', '--no-audit', '--no-fund', tarball]);

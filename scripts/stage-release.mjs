@@ -3,6 +3,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { x as extractTar } from 'tar';
+import { preparePackage } from './package-artifact.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const preview = path.join(root, 'release-preview');
@@ -23,8 +24,9 @@ async function packedFiles(directory, prefix = '') {
 
 const staging = await mkdtemp(path.join(root, '.pathsift-preview-'));
 try {
-  const result = spawnSync(process.execPath, [npmCli, 'pack', '--json', '--ignore-scripts', '--pack-destination', staging], {
-    cwd: root, encoding: 'utf8'
+  const packageInput = await preparePackage(staging);
+  const result = spawnSync(process.execPath, [npmCli, 'pack', '--json', '--pack-destination', staging], {
+    cwd: packageInput, encoding: 'utf8'
   });
   if (result.error) throw result.error;
   if (result.status !== 0) throw new Error(`npm pack failed:\n${result.stdout}\n${result.stderr}`);
@@ -41,6 +43,7 @@ try {
   }
   await writeFile(path.join(staging, 'pack-metadata.json'), JSON.stringify(packed, null, 2) + '\n');
   await writeFile(path.join(staging, marker), markerText);
+  await rm(packageInput, { recursive: true });
   let previewExists = false;
   try { await stat(preview); previewExists = true; }
   catch (error) { if (error.code !== 'ENOENT') throw error; }

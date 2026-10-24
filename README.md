@@ -1,7 +1,21 @@
 # pathsift — ignore-aware filesystem CLI
 
-pathsift inspects, copies, and archives directory trees with one Git-style ignore engine. It does not provide `mv` or
-recursive `rm`.
+pathsift inspects, copies, and archives directory trees with one Git-style ignore engine.
+
+This repository contains the TypeScript source, hexagonal CLI architecture, BDD/TDD suite, build scripts, and release checks. The npm package ships compiled JavaScript and a shorter [package usage README](docs/npm-readme.md). This root README covers the project contract and contributor workflow as well as the CLI behavior.
+
+## Repository layout
+
+| Path | Role |
+| --- | --- |
+| `src/core/` | Pure tree, path, hash, and port rules. |
+| `src/application/` | Command coordination and structured results. |
+| `src/adapters/` | Filesystem, config, terminal, and archive capabilities. |
+| `src/boot/` | CLI argument parsing and composition. |
+| `test/tdd/`, `test/bdd/` | Rule tests and per-command behavior scenarios. |
+| `docs/npm-readme.md` | Usage guide copied into the generated npm package. |
+
+The [architecture document](docs/architecture.md) explains the dependency direction. [Contributing](CONTRIBUTING.md) defines the required checks and commit format.
 
 ## Requirements and checkout use
 
@@ -74,15 +88,14 @@ package-level global file (`global.ignore` by default). Global rules have lowest
 the same directory apply in option order; deeper directory files have higher priority. An ignore file inside an excluded
 ancestor cannot rescue that ancestor.
 
-**The filename selects a file; it never selects a parser.** Every selected file is interpreted with the `ignore`
-library's Git-style rules, including a file named `.dockerignore`. For example, pathsift will apply a nested
+Every selected ignore file uses the `ignore` library's Git-style rules, including a file named `.dockerignore`. For example, pathsift will apply a nested
 `.dockerignore` when that filename is selected, whereas Docker's build-context rules are defined separately. Pathsift's
 selected files can therefore produce a different set of paths from Docker's build context; review exclusions before
 copying or archiving. Docker documents its own matching rules in
 the [Docker build-context guide](https://docs.docker.com/build/concepts/context/).
 
-The matcher is Git-style, but pathsift does not invoke Git or read `.git/info/exclude`, Git's `core.excludesFile`,
-ignore-case configuration, or submodules. Symlinked directories are reported but never traversed.
+Matching uses the `ignore` library and the selected filenames. Git repository settings such as `.git/info/exclude`,
+`core.excludesFile`, ignore-case configuration, and submodules are outside this rule set. Symlinked directories are reported but never traversed.
 
 ## Hash format version in the package config
 
@@ -97,7 +110,7 @@ The checked-in `pathsift.config.json` declares the current hash format explicitl
 }
 ```
 
-This prototype starts at hash format version **1**, independently of the npm package version. `hashVersion` selects the domain tags used by the two-level digest; the CLI supports only version 1 and rejects a missing or unsupported version rather than silently changing fingerprints. The ignore-file settings do not change the hash algorithm, only which files enter it. `bufferLimitBytes` is a separate export setting: the default 1 GiB threshold is measured from visible regular-file bytes after ignore filtering.
+The hash format starts at version **1**, independently of the npm package version. `hashVersion` selects the domain tags used by the two-level digest; the CLI supports only version 1 and rejects a missing or unsupported version rather than silently changing fingerprints. The ignore-file settings select which files enter the hash. `bufferLimitBytes` is a separate export setting: the default 1 GiB threshold is measured from visible regular-file bytes after ignore filtering.
 
 ## Names shared with Unix commands
 
@@ -134,8 +147,7 @@ and yield the same digest.
 
 Empty directories, symlinks, and ignored files are outside this file-only digest. SHA-256
 offers collision resistance, not a mathematical no-collision guarantee. The full encoding and collision argument are
-in [the hash contract](docs/hash.md). This command does not manage the shell's command lookup cache; Bash's `hash`
-builtin has that distinct purpose. See
+in [the hash contract](docs/hash.md). Bash's `hash` builtin instead manages the shell's command lookup cache. See
 the [Bash builtin manual](https://www.gnu.org/software/bash/manual/html_node/Bourne-Shell-Builtins.html).
 
 ## Output, export, and editor behavior
@@ -169,7 +181,7 @@ npm run stage:release   # writes release-preview/ from a real npm tarball
 npm run verify:release   # all checks, dependency audits, package contents
 ```
 
-The generated, Git-ignored `release-preview/` contains `pathsift-<version>.tgz`, an extracted `package/` tree, and `pack-metadata.json`. `dist/` contains only compiled JavaScript; inspect `release-preview/package/` to see the actual files that npm would publish. Runtime dependencies are installed separately by npm and are not bundled in this tarball.
+The generated, Git-ignored `release-preview/` contains `pathsift-<version>.tgz`, an extracted `package/` tree, and `pack-metadata.json`. `dist/` contains only compiled JavaScript; inspect `release-preview/package/` to see the actual files that npm would publish, including the short README from `docs/npm-readme.md`. The repository root is private, so publish the reviewed tarball rather than packing the root. Runtime dependencies are installed separately by npm and are not bundled in this tarball.
 
 Every path-processing command has its own BDD file with 0, 1, and 2 ignore-file cases, disabled global rules, and
 disabled all filtering. CI runs the release gate on Node 22.12, 23, 24, and 26. Dependency audits and the package
