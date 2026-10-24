@@ -16,5 +16,5 @@ Feature: nano command
     Then stderr reports an argument error
 
   Scenario: Reject a scan option
-    When I run nano with --force
+    When I run nano with --force or --parent with or without an empty value
     Then stderr reports that the option is unsupported without opening the editor

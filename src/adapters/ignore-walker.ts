@@ -46,16 +46,30 @@ function allowed(absPath: string, isDir: boolean, scopes: Scope[]) {
 }
 
 export async function* walk(root: string, {
-  ignoreFiles = ['.gitignore'], globalPath, skipPath,
+  ignoreFiles = ['.gitignore'], globalPath, parentPath, skipPath,
   ignoreEnabled = true, globalEnabled = true
 }: Partial<WalkOptions> = {}): AsyncGenerator<WalkEntry> {
   root = path.resolve(root);
   const stat = await fs.lstat(root);
   if (!stat.isDirectory()) throw new Error('Source must be a directory: ' + root);
+  root = await fs.realpath(root);
+  const parent = parentPath === undefined ? root : await fs.realpath(parentPath);
+  if (!within(parent, root)) throw new Error('--parent must be an ancestor of the source directory: ' + parent);
   const createIgnore = ignoreEnabled ? (await import('ignore')).default : null;
   const scopes: Scope[] = [];
   if (ignoreEnabled && globalEnabled && globalPath) {
     scopes.push(scope(root, await readOptional(globalPath), createIgnore!));
+  }
+  if (ignoreEnabled) {
+    let directory = parent;
+    while (directory !== root) {
+      for (const name of ignoreFiles) {
+        const contents = await readOptional(path.join(directory, name));
+        if (contents) scopes.push(scope(directory, contents, createIgnore!));
+      }
+      const next = path.relative(directory, root).split(path.sep)[0];
+      directory = path.join(directory, next);
+    }
   }
   async function* descend(dir: string, inheritedScopes: Scope[] = scopes): AsyncGenerator<WalkEntry> {
     const attached = [];

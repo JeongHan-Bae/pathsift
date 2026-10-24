@@ -27,7 +27,7 @@ The [architecture document](docs/architecture.md) explains the dependency direct
   bin points directly to compiled `dist/boot/cli-main.js`. `pathsift@0.0.1` has been published with the npm `alpha` dist-tag; this checkout is version `0.1.0`.
 
 `pathsift.config.json` and `global.ignore` live beside the CLI package. `pathsift config` prints their absolute paths and the active hash version.
-`pathsift nano` edits that package's `global.ignore`, so its installation directory must be writable for editing. Install under a user-writable npm prefix if you need `nano`.
+`pathsift nano` edits that package's `global.ignore`, so its installation directory must be writable for editing. Install under a user-writable npm prefix if you need `nano`. A global reinstall may replace edits to that installed file; the checked-in template still has `.git/` commented out.
 
 ## Command reference
 
@@ -61,6 +61,7 @@ These options apply to `tree`, `ls`, `find`, `count`, `du`, `hash`, `manifest`, 
 | Option                     | Meaning                                                                                                                      |
 |----------------------------|------------------------------------------------------------------------------------------------------------------------------|
 | `--ignore-file <filename>` | Replace the configured ignore filename list. Repeat for two or more names; each value must be a simple filename, not a path. |
+| `--parent [directory]`      | Collect selected ignore files along this ancestor-to-source path. Omit the option to start at the source; use bare `--parent` or `--parent ""` to start at the current directory. |
 | `--no-global-ignore`       | Skip package `global.ignore` but still apply directory ignore files.                                                         |
 | `--no-ignore`              | Disable all ignore filtering, including global and directory rules. This wins if combined with `--no-global-ignore`.         |
 | `--force`                  | Allow a relative source or destination path containing a `..` segment. It does not bypass destination safety checks.         |
@@ -69,10 +70,19 @@ These options apply to `tree`, `ls`, `find`, `count`, `du`, `hash`, `manifest`, 
 `./child`, and absolute paths do not require `--force`. Without `--force`, a parent-relative path fails on stderr before
 traversal or export.
 
+`--parent` must resolve to the source directory or one of its ancestors. It reads ignore files in those directories without scanning their other entries; command output and `hash` file names remain relative to the selected source. A relative `--parent` containing `..` also requires `--force`. `--no-ignore` disables these ancestor rules, while `--no-global-ignore` keeps them.
+
+Bare `--parent` means the current directory at the end of a command, before `--`, or before another option such as `--no-ignore`. Use `--parent=<directory>` when a directory name itself begins with `-`.
+
+The parent modes combine with the ignore-file rules: use no `--parent`, `--parent ""`, or an explicit ancestor regardless of how many matching ignore files exist. The BDD suite checks the five ignore cases crossed with all three parent modes for every path-processing command.
+
 ```sh
 pathsift tree ./project
 pathsift find ./project --ignore-file .gitignore --ignore-file .deployignore
 pathsift tree ./project --no-global-ignore
+pathsift tree ./project/sub --parent ./project
+pathsift tree ./src --parent ""  # from this repository's root
+pathsift tree ./src --parent --no-global-ignore
 pathsift manifest ./project --no-ignore
 pathsift cp ./project ./backup
 pathsift archive ./project ./project.tar.gz
@@ -183,6 +193,5 @@ npm run verify:release   # all checks, dependency audits, package contents
 
 The generated, Git-ignored `release-preview/` contains `pathsift-<version>.tgz`, an extracted `package/` tree, and `pack-metadata.json`. `dist/` contains only compiled JavaScript; inspect `release-preview/package/` to see the actual files that npm would publish, including the short README from `docs/npm-readme.md`. The repository root is private, so publish the reviewed tarball rather than packing the root. Runtime dependencies are installed separately by npm and are not bundled in this tarball.
 
-Every path-processing command has its own BDD file with 0, 1, and 2 ignore-file cases, disabled global rules, and
-disabled all filtering. CI runs the release gate on Node 22.12, 23, 24, and 26. Dependency audits and the package
+Every path-processing command has its own BDD file covering the five ignore cases crossed with all three parent modes. CI runs the release gate on Node 22.12, 23, 24, and 26. Dependency audits and the package
 installation check need npm registry access.

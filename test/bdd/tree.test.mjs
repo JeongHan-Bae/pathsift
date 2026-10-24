@@ -2,7 +2,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdir, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { matrix, withFixture, fileBytes, filePaths, checkReadPathPolicy, assertCliError } from './support/fixture.mjs';
+import { matrix, withFixture, withParentFixture, withParentMatrixFixture, parentModes, parentModeSpellings, parentMatrixPaths, parentMatrixBytes, parentPaths, parentBytes, filePaths, checkReadPathPolicy, assertCliError } from './support/fixture.mjs';
 import { runCommandPty } from './support/nano-pty.mjs';
 
 const expectedBranches = [
@@ -13,12 +13,26 @@ const expectedBranches = [
   ['├── sub/', '│   ├── .gitignore', '│   ├── child.txt', '│   └── nested-ignore.txt', '├── .deployignore', '├── .gitignore', '├── always.txt', '├── global-only.txt', '├── link-to-sub@', '├── one-only.txt', '└── two-only.txt']
 ];
 
+const ancestorBranches = [
+  expectedBranches[0],
+  ['├── sub/', '│   ├── .gitignore', '│   └── child.txt', '├── .gitignore', '├── link-to-sub@', '└── two-only.txt'],
+  ['├── sub/', '│   └── .gitignore', '├── .deployignore', '├── .gitignore', '└── link-to-sub@'],
+  ['├── sub/', '│   └── .gitignore', '├── .deployignore', '├── .gitignore', '├── global-only.txt', '└── link-to-sub@'],
+  expectedBranches[4]
+];
+
 describe('tree', () => {
-  matrix.forEach((variant, index) => it(variant.name, async () => withFixture(variant, async ({ source, invoke }) => {
-    const { stdout, stderr } = await invoke('tree', source, ...variant.flags);
-    assert.equal(stderr, '');
-    assert.equal(stdout, [source, ...expectedBranches[index], `1 directories, ${filePaths(variant).length} files, ${fileBytes(variant)} file bytes`, ''].join('\n'));
-  })));
+  matrix.forEach((variant, index) => {
+    for (const mode of parentModes) it(`${variant.name} / ${mode.name} parent`, async () => withParentMatrixFixture(variant, async ({ base, source, invoke }) => {
+      const selected = { ...variant, paths: parentMatrixPaths(variant, mode) };
+      const branches = mode.name === 'omitted' || variant.flags.includes('--no-ignore') ? expectedBranches[index] : ancestorBranches[index];
+      for (const spelling of parentModeSpellings(mode, base)) {
+        const { stdout, stderr } = await invoke('tree', source, ...variant.flags, ...spelling.flags);
+        assert.equal(stderr, '', spelling.name);
+        assert.equal(stdout, [source, ...branches, `1 directories, ${filePaths(selected).length} files, ${parentMatrixBytes(variant, mode)} file bytes`, ''].join('\n'), spelling.name);
+      }
+    }));
+  });
   it('sorts multiple directories before files within every level', async () => withFixture(matrix[0], async ({ source, invoke }) => {
     await rm(source, { recursive: true, force: true });
     for (const dir of ['z-dir', 'a-dir/z-sub', 'a-dir/a-sub']) {
@@ -54,5 +68,13 @@ describe('tree', () => {
   it('requires force for parent-relative source and reports invalid source', async () => withFixture(matrix[0], async fixture => {
     await checkReadPathPolicy('tree', fixture);
     await assertCliError(fixture.invoke('tree', `${fixture.source}/missing`), /ENOENT/);
+  }));
+  it('draws the target using optional ancestor ignore scopes', async () => withParentFixture(async ({ source, parent, middle, target, invoke, invokeIn }) => {
+    const expected = paths => [target, ...paths.map((name, index) => `${index === paths.length - 1 ? '└──' : '├──'} ${name}`), `0 directories, ${paths.length} files, ${parentBytes(paths)} file bytes`, ''].join('\n');
+    assert.equal((await invoke('tree', target)).stdout, expected(parentPaths.default));
+    assert.equal((await invoke('tree', target, '--parent', parent)).stdout, expected(parentPaths.selected));
+    assert.equal((await invokeIn(parent, 'tree', target, '--parent', '')).stdout, expected(parentPaths.selected));
+    await assertCliError(invoke('tree', target, '--parent', source), /--parent must be an ancestor/);
+    await assertCliError(invokeIn(middle, 'tree', target, '--parent', '..'), /Relative parent path requires --force/);
   }));
 });

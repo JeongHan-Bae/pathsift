@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
-import { matrix, withFixture, filePaths, hashOf, checkReadPathPolicy } from './support/fixture.mjs';
+import { matrix, withFixture, withParentFixture, withParentMatrixFixture, parentModes, parentModeSpellings, parentMatrixPaths, parentPaths, parentContents, filePaths, hashOf, checkReadPathPolicy, assertCliError } from './support/fixture.mjs';
 
 const sha256 = value => createHash('sha256').update(value).digest('hex');
 const fileHash = (filename, contentHash) => sha256(`pathsift-file-v1:${sha256(filename)}${contentHash}`);
@@ -21,12 +21,14 @@ function treeDigest(output, source) {
 }
 
 describe('hash', () => {
-  for (const variant of matrix) it(variant.name, async () => withFixture(variant, async ({ source, invoke }) => {
-    const { stdout, stderr } = await invoke('hash', source, ...variant.flags);
-    assert.equal(stderr, '');
-    assert.deepEqual(stdout.trimEnd().split('\n').slice(0, -1), filePaths(variant).map(p => `file-sha256  ${fileHash(p, hashOf(p))}  ${p}`));
-    assert.equal(treeDigest(stdout, source), expectedTreeHash(variant));
-    assert.equal(treeDigest((await invoke('hash', source, ...variant.flags)).stdout, source), treeDigest(stdout, source));
+  for (const variant of matrix) for (const mode of parentModes) it(`${variant.name} / ${mode.name} parent`, async () => withParentMatrixFixture(variant, async ({ base, source, invoke }) => {
+    const selected = { ...variant, paths: parentMatrixPaths(variant, mode) };
+    for (const spelling of parentModeSpellings(mode, base)) {
+      const { stdout, stderr } = await invoke('hash', source, ...variant.flags, ...spelling.flags);
+      assert.equal(stderr, '', spelling.name);
+      assert.deepEqual(stdout.trimEnd().split('\n').slice(0, -1), filePaths(selected).map(p => `file-sha256  ${fileHash(p, hashOf(p))}  ${p}`), spelling.name);
+      assert.equal(treeDigest(stdout, source), expectedTreeHash(selected), spelling.name);
+    }
   }));
   it('changes the tree digest when a visible file is renamed without changing its bytes', async () => withFixture(matrix[0], async ({ source, invoke }) => {
     const before = (await invoke('hash', source)).stdout;
@@ -122,4 +124,15 @@ describe('hash', () => {
     assert.equal(treeDigest((await invoke('hash', source)).stdout, source), before);
   }));
   it('requires force for parent-relative source', async () => withFixture(matrix[0], fixture => checkReadPathPolicy('hash', fixture)));
+  it('hashes the target-relative selected files under ancestor ignore scopes', async () => withParentFixture(async ({ source, parent, middle, target, invoke, invokeIn }) => {
+    const expected = paths => {
+      const hashes = paths.map(name => fileHash(name, sha256(parentContents[name])));
+      return [...paths.map((name, index) => `file-sha256  ${hashes[index]}  ${name}`), `tree-sha256  ${sha256(`pathsift-tree-v1:${paths.length}:${hashes.join('')}`)}  ${target}`, ''].join('\n');
+    };
+    assert.equal((await invoke('hash', target)).stdout, expected(parentPaths.default));
+    assert.equal((await invoke('hash', target, '--parent', parent)).stdout, expected(parentPaths.selected));
+    assert.equal((await invokeIn(parent, 'hash', target, '--parent', '')).stdout, expected(parentPaths.selected));
+    await assertCliError(invoke('hash', target, '--parent', source), /--parent must be an ancestor/);
+    await assertCliError(invokeIn(middle, 'hash', target, '--parent', '..'), /Relative parent path requires --force/);
+  }));
 });

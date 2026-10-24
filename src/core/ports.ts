@@ -10,6 +10,7 @@ export interface WalkEntry {
 export interface WalkOptions {
   ignoreFiles: string[];
   globalPath?: string;
+  parentPath?: string;
   ignoreEnabled: boolean;
   globalEnabled: boolean;
   skipPath?: string;
@@ -18,6 +19,7 @@ export interface WalkOptions {
 export interface CommandPorts {
   resolve(value: string): string;
   isAbsolute(value: string): boolean;
+  isWithin(ancestor: string, candidate: string): Promise<boolean>;
   isSimpleFilename(value: string): boolean;
   walk(root: string, options: WalkOptions): AsyncIterable<WalkEntry>;
   openSource(root: string): Promise<{ close(): Promise<void> }>;

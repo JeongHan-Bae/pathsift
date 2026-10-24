@@ -221,6 +221,9 @@ export function createNodeFilesystemPorts(): CommandPorts {
   return {
     resolve: path.resolve,
     isAbsolute: path.isAbsolute,
+    async isWithin(ancestor: string, candidate: string) {
+      return within(await fsp.realpath(ancestor), await fsp.realpath(candidate));
+    },
     isSimpleFilename: (name: string) => typeof name === 'string' && Boolean(name) && name !== '.' && name !== '..' && name === path.basename(name),
     walk,
     openSource: fsp.opendir,

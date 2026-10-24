@@ -1,17 +1,29 @@
 Feature: archive command
-  Scenario Outline: archive respects ignore combinations
+  Scenario Outline: archive respects ignore and parent combinations
     Given an isolated directory with <ignore files> ignore files
     And the global ignore rule is <global>
-    When I run archive with <flags>
+    And the parent mode is <parent>
+    And empty parent accepts "", bare --parent, --parent --, and --parent before --force
+    When I run archive with <flags> and <parent>
     Then I receive an archive containing only visible entries and preserved links
 
     Examples:
-      | ignore files | global | flags |
-      | 0 | on | defaults |
-      | 1 | on | defaults |
-      | 2 | on | two --ignore-file options |
-      | 2 | off | --no-global-ignore |
-      | 2 | bypassed | --no-ignore |
+      | ignore files | global | flags | parent |
+      | 0 | on | defaults | omitted |
+      | 0 | on | defaults | empty |
+      | 0 | on | defaults | explicit |
+      | 1 | on | defaults | omitted |
+      | 1 | on | defaults | empty |
+      | 1 | on | defaults | explicit |
+      | 2 | on | two --ignore-file options | omitted |
+      | 2 | on | two --ignore-file options | empty |
+      | 2 | on | two --ignore-file options | explicit |
+      | 2 | off | --no-global-ignore | omitted |
+      | 2 | off | --no-global-ignore | empty |
+      | 2 | off | --no-global-ignore | explicit |
+      | 2 | bypassed | --no-ignore | omitted |
+      | 2 | bypassed | --no-ignore | empty |
+      | 2 | bypassed | --no-ignore | explicit |
 
   Scenario: Parent-relative paths require force
     Given a relative path containing ..
@@ -39,3 +51,9 @@ Feature: archive command
     Given the visible file bytes exceed bufferLimitBytes
     When I run archive
     Then the archive contains the expected entries
+
+  Scenario: Archive with ancestor ignore scopes
+    Given a target below two ancestor ignore files
+    When I run archive without --parent, with its ancestor, and with an empty --parent from that ancestor
+    Then each archive contains exactly its selected target-relative members
+    And invalid parent paths fail without creating the archive

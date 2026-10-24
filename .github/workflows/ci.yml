@@ -2,7 +2,19 @@ name: CI
 
 on:
   push:
+    paths:
+      - 'bin/**'
+      - 'scripts/**'
+      - 'src/**'
+      - 'test/**'
+      - '.github/workflows/ci.yml'
   pull_request:
+    paths:
+      - 'bin/**'
+      - 'scripts/**'
+      - 'src/**'
+      - 'test/**'
+      - '.github/workflows/ci.yml'
   workflow_dispatch:
 
 permissions:

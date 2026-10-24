@@ -24,6 +24,10 @@ describe('nano', () => {
     assert.match(result.transcript, /Unsaved changes/);
     assert.equal(await readFile(path.join(packageDir, 'global.ignore'), 'utf8'), 'global-only.txt\n');
   }));
-  it('refuses scan options without opening the editor', async () => withFixture(matrix[0], ({ invoke }) => assertCliError(invoke('nano', '--force'), /nano does not accept --force/)));
+  it('refuses scan options without opening the editor', async () => withFixture(matrix[0], async ({ invoke }) => {
+    await assertCliError(invoke('nano', '--force'), /nano does not accept --force/);
+    await assertCliError(invoke('nano', '--parent', ''), /nano does not accept --parent/);
+    await assertCliError(invoke('nano', '--parent'), /nano does not accept --parent/);
+  }));
   it('refuses positional arguments', async () => withFixture(matrix[0], ({ invoke }) => assertCliError(invoke('nano', 'extra'), /nano takes no positional arguments/)));
 });

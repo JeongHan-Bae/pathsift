@@ -23,6 +23,10 @@ describe('config', () => {
     await writeFile(path.join(packageDir, 'pathsift.config.json'), JSON.stringify({ ignoreFiles: ['.gitignore'], globalIgnore: 'global.ignore', hashVersion: 1, bufferLimitBytes: 0 }));
     await assertCliError(invoke('config'), /bufferLimitBytes.*positive safe integer/);
   }));
-  it('refuses scan options', async () => withFixture(matrix[0], ({ invoke }) => assertCliError(invoke('config', '--no-ignore'), /config does not accept --no-ignore/)));
+  it('refuses scan options', async () => withFixture(matrix[0], async ({ invoke }) => {
+    await assertCliError(invoke('config', '--no-ignore'), /config does not accept --no-ignore/);
+    await assertCliError(invoke('config', '--parent', ''), /config does not accept --parent/);
+    await assertCliError(invoke('config', '--parent'), /config does not accept --parent/);
+  }));
   it('refuses positional arguments', async () => withFixture(matrix[0], ({ invoke }) => assertCliError(invoke('config', 'extra'), /config takes no positional arguments/)));
 });

@@ -7,7 +7,18 @@ import { createNodeFilesystemPorts } from '../adapters/node-filesystem.ts';
 import { createHelpDocument } from '../adapters/output/cli-help.ts';
 import { printCommand, printHelp } from '../adapters/output/terminal-output.ts';
 
-const scanOptionNames = ['ignore-file', 'no-ignore', 'no-global-ignore', 'force'] as const;
+const scanOptionNames = ['ignore-file', 'no-ignore', 'no-global-ignore', 'parent', 'force'] as const;
+
+function normalizeParentArgs(args: string[]): string[] {
+  let afterTerminator = false;
+  return args.map((value, index) => {
+    if (value === '--') afterTerminator = true;
+    if (!afterTerminator && value === '--parent' && (index === args.length - 1 || args[index + 1].startsWith('-'))) {
+      return '--parent=';
+    }
+    return value;
+  });
+}
 
 function rejectIrrelevantOptions(command: string, options: Record<string, unknown>): void {
   const option = scanOptionNames.find(name => options[name] !== undefined);
@@ -16,9 +27,10 @@ function rejectIrrelevantOptions(command: string, options: Record<string, unknow
 
 async function main() {
   const { values: opts, positionals } = parseArgs({
-    args: process.argv.slice(2), allowPositionals: true, strict: true,
+    args: normalizeParentArgs(process.argv.slice(2)), allowPositionals: true, strict: true,
     options: {
       'ignore-file': { type: 'string', multiple: true },
+      'parent': { type: 'string' },
       'no-ignore': { type: 'boolean' },
       'force': { type: 'boolean' },
       'no-global-ignore': { type: 'boolean' },

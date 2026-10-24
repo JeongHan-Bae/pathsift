@@ -39,6 +39,70 @@ export const fileBytes = variant => filePaths(variant).reduce((total, p) => tota
 export const hashOf = p => createHash('sha256').update(contents[p]).digest('hex');
 export const display = p => p + (kind(p) === 'dir' ? '/' : '');
 
+export const parentContents = {
+  '.gitignore': 'local.txt\n',
+  'global-only.txt': 'global',
+  'local.txt': 'local',
+  'middle.txt': 'middle',
+  'outer.txt': 'outer',
+  'second.txt': 'second',
+  'visible.txt': 'visible'
+};
+export const parentPaths = {
+  default: ['.gitignore', 'middle.txt', 'outer.txt', 'second.txt', 'visible.txt'],
+  selected: ['.gitignore', 'second.txt', 'visible.txt'],
+  twoFiles: ['.gitignore', 'visible.txt'],
+  noGlobal: ['.gitignore', 'global-only.txt', 'second.txt', 'visible.txt'],
+  noIgnore: ['.gitignore', 'global-only.txt', 'local.txt', 'middle.txt', 'outer.txt', 'second.txt', 'visible.txt']
+};
+export const parentBytes = paths => paths.reduce((total, name) => total + Buffer.byteLength(parentContents[name]), 0);
+
+export const parentModes = [
+  { name: 'omitted', flags: () => [] },
+  { name: 'empty', flags: () => ['--parent', ''] },
+  { name: 'explicit', flags: base => ['--parent', base] }
+];
+
+export const parentModeSpellings = (mode, base) => mode.name === 'empty' ? [
+  { name: 'value', flags: ['--parent', ''] },
+  { name: 'bare', flags: ['--parent'] },
+  { name: 'terminator', flags: ['--parent', '--'] },
+  { name: 'option', flags: ['--parent', '--force'] }
+] : [{ name: mode.name, flags: mode.flags(base) }];
+
+export const parentMatrixPaths = (variant, mode) => {
+  if (mode.name === 'omitted' || variant.flags.includes('--no-ignore')) return variant.paths;
+  return variant.paths.filter(name =>
+    !(variant.count >= 1 && name === 'always.txt') &&
+    !(variant.count >= 2 && name === 'sub/child.txt'));
+};
+
+export const parentMatrixBytes = (variant, mode) => parentMatrixPaths(variant, mode)
+  .filter(name => kind(name) === 'file')
+  .reduce((total, name) => total + Buffer.byteLength(contents[name]), 0);
+
+export async function withParentMatrixFixture(variant, fn) {
+  return withFixture(variant, async fixture => {
+    if (variant.count >= 1) await writeFile(path.join(fixture.base, '.gitignore'), 'source/always.txt\n');
+    if (variant.count >= 2) await writeFile(path.join(fixture.base, '.deployignore'), 'source/sub/child.txt\n');
+    await fn(fixture);
+  });
+}
+
+export async function withParentFixture(fn) {
+  return withFixture(matrix[0], async fixture => {
+    const parent = path.join(fixture.base, 'parent');
+    const middle = path.join(parent, 'middle');
+    const target = path.join(middle, 'target');
+    await mkdir(target, { recursive: true });
+    await writeFile(path.join(parent, '.gitignore'), 'middle/target/outer.txt\n');
+    await writeFile(path.join(parent, '.deployignore'), 'middle/target/second.txt\n');
+    await writeFile(path.join(middle, '.gitignore'), 'target/middle.txt\n');
+    for (const [name, value] of Object.entries(parentContents)) await writeFile(path.join(target, name), value);
+    await fn({ ...fixture, parent, middle, target });
+  });
+}
+
 export async function withFixture(variant, fn) {
   const base = await mkdtemp(path.join(tmpdir(), 'pathsift-bdd-'));
   try {

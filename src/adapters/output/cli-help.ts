@@ -36,6 +36,7 @@ export function createHelpDocument(): HelpDocument {
     ],
     scanOptions: [
       { syntax: '--ignore-file <filename>', description: 'Replace configured ignore filenames; repeatable' },
+      { syntax: '--parent [directory]', description: 'Start ignore collection at ancestor; bare or "" means cwd; omitted means source' },
       { syntax: '--force', description: "Allow relative paths containing '..'" },
       { syntax: '--no-ignore', description: 'Disable all filtering' },
       { syntax: '--no-global-ignore', description: 'Disable global.ignore; keep directory rules' }
@@ -46,6 +47,10 @@ export function createHelpDocument(): HelpDocument {
     notes: [
       'Scan options apply to tree, ls, find, count, du, hash, manifest, cp, and archive.',
       'Every ignore filename uses Git-style rules, including .dockerignore.',
+      'Selected ignore files are read along the parent-to-source path; sibling entries are untouched.',
+      '--parent combines with every --ignore-file selection and filtering switch.',
+      'Bare --parent also works before -- or another option.',
+      '--no-ignore skips ancestor rules; --no-global-ignore keeps them.',
       'Symlinks are preserved but never traversed; exports skip their own empty output path.'
     ]
   };

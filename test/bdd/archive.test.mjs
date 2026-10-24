@@ -1,10 +1,10 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdir, readFile, symlink, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, readFile, symlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { matrix, withFixture, kind, assertCliError } from './support/fixture.mjs';
+import { matrix, withFixture, withParentFixture, withParentMatrixFixture, parentModes, parentModeSpellings, parentMatrixPaths, parentPaths, kind, assertCliError } from './support/fixture.mjs';
 
 const exec = promisify(execFile);
 const archivePaths = variant => variant.paths.map(p => kind(p) === 'dir' ? `${p}/` : p);
@@ -18,12 +18,15 @@ async function assertTarContents(file, variant) {
 }
 
 describe('archive', () => {
-  for (const variant of matrix) it(variant.name, async () => withFixture(variant, async ({ base, source, invoke }) => {
-    const destination = path.join(base, 'out.tar');
-    const { stdout, stderr } = await invoke('archive', source, destination, ...variant.flags);
-    assert.equal(stderr, '');
-    assert.match(stdout, /^Created .*out\.tar \(\d+ bytes\)\n$/);
-    await assertTarContents(destination, variant);
+  for (const variant of matrix) for (const mode of parentModes) it(`${variant.name} / ${mode.name} parent`, async () => withParentMatrixFixture(variant, async ({ base, source, invoke }) => {
+    const selected = { ...variant, paths: parentMatrixPaths(variant, mode) };
+    for (const spelling of parentModeSpellings(mode, base)) {
+      const destination = path.join(base, `out-${mode.name}-${spelling.name}.tar`);
+      const { stdout, stderr } = await invoke('archive', source, destination, ...variant.flags, ...spelling.flags);
+      assert.equal(stderr, '', spelling.name);
+      assert.match(stdout, /^Created .*out-(omitted|empty|explicit)-(omitted|explicit|value|bare|terminator|option)\.tar \(\d+ bytes\)\n$/, spelling.name);
+      await assertTarContents(destination, selected);
+    }
   }));
   for (const extension of ['tar.gz', 'tgz']) it(`creates ${extension}`, async () => withFixture(matrix[2], async ({ base, source, invoke }) => {
     const destination = path.join(base, `out.${extension}`);
@@ -77,5 +80,24 @@ describe('archive', () => {
     await invoke('archive', source, path.join(alias, 'inside.tar'));
     await assertTarContents(path.join(source, 'inside.tar'), matrix[0]);
     await assertCliError(invoke('archive', source), /requires source directory and destination/);
+  }));
+  it('archives only files selected by optional ancestor ignore scopes', async () => withParentFixture(async ({ base, source, parent, middle, target, invoke, invokeIn }) => {
+    const check = async (destination, paths) => {
+      const listing = (await exec('tar', ['-tf', destination])).stdout.trimEnd().split('\n');
+      assert.deepEqual(listing.sort(), [...paths].sort());
+    };
+    const defaultDest = path.join(base, 'default.tar');
+    await invoke('archive', target, defaultDest);
+    await check(defaultDest, parentPaths.default);
+    const selectedDest = path.join(base, 'selected.tar');
+    await invoke('archive', target, selectedDest, '--parent', parent);
+    await check(selectedDest, parentPaths.selected);
+    const emptyDest = path.join(base, 'empty.tar');
+    await invokeIn(parent, 'archive', target, emptyDest, '--parent', '');
+    await check(emptyDest, parentPaths.selected);
+    const rejected = path.join(base, 'rejected.tar');
+    await assertCliError(invoke('archive', target, rejected, '--parent', source), /--parent must be an ancestor/);
+    await assertCliError(invokeIn(middle, 'archive', target, rejected, '--parent', '..'), /Relative parent path requires --force/);
+    await assert.rejects(lstat(rejected), { code: 'ENOENT' });
   }));
 });

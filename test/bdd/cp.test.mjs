@@ -1,18 +1,21 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdir, readFile, readdir, symlink, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, readFile, readdir, symlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { matrix, withFixture, filePaths, assertCopied, assertCliError } from './support/fixture.mjs';
+import { matrix, withFixture, withParentFixture, withParentMatrixFixture, parentModes, parentModeSpellings, parentMatrixPaths, parentPaths, parentContents, filePaths, actualPaths, assertCopied, assertCliError } from './support/fixture.mjs';
 
 const configWithLimit = bytes => JSON.stringify({ ignoreFiles: ['.gitignore'], globalIgnore: 'global.ignore', hashVersion: 1, bufferLimitBytes: bytes });
 
 describe('cp', () => {
-  for (const variant of matrix) it(variant.name, async () => withFixture(variant, async ({ base, source, invoke }) => {
-    const destination = path.join(base, 'copy');
-    const { stdout, stderr } = await invoke('cp', source, destination, ...variant.flags);
-    assert.equal(stderr, '');
-    assert.equal(stdout, `Copied ${filePaths(variant).length + 1} files/symlinks into ${destination}\n`);
-    await assertCopied(source, destination, variant);
+  for (const variant of matrix) for (const mode of parentModes) it(`${variant.name} / ${mode.name} parent`, async () => withParentMatrixFixture(variant, async ({ base, source, invoke }) => {
+    const selected = { ...variant, paths: parentMatrixPaths(variant, mode) };
+    for (const spelling of parentModeSpellings(mode, base)) {
+      const destination = path.join(base, `copy-${mode.name}-${spelling.name}`);
+      const { stdout, stderr } = await invoke('cp', source, destination, ...variant.flags, ...spelling.flags);
+      assert.equal(stderr, '', spelling.name);
+      assert.equal(stdout, `Copied ${filePaths(selected).length + 1} files/symlinks into ${destination}\n`, spelling.name);
+      await assertCopied(source, destination, selected);
+    }
   }));
   it('copies c into a missing c/a without copying the output into itself', async () => withFixture(matrix[0], async ({ source, invoke }) => {
     const destination = path.join(source, 'a');
@@ -59,5 +62,24 @@ describe('cp', () => {
     await invoke('cp', source, path.join(alias, 'inside'));
     await assertCopied(source, path.join(source, 'inside'), matrix[0]);
     await assertCliError(invoke('cp', source), /requires source directory and destination/);
+  }));
+  it('copies only files selected by optional ancestor ignore scopes', async () => withParentFixture(async ({ base, source, parent, middle, target, invoke, invokeIn }) => {
+    const check = async (destination, paths) => {
+      assert.deepEqual(await actualPaths(destination), paths);
+      for (const name of paths) assert.equal(await readFile(path.join(destination, name), 'utf8'), parentContents[name]);
+    };
+    const defaultDest = path.join(base, 'default-copy');
+    await invoke('cp', target, defaultDest);
+    await check(defaultDest, parentPaths.default);
+    const selectedDest = path.join(base, 'selected-copy');
+    await invoke('cp', target, selectedDest, '--parent', parent);
+    await check(selectedDest, parentPaths.selected);
+    const emptyDest = path.join(base, 'empty-copy');
+    await invokeIn(parent, 'cp', target, emptyDest, '--parent', '');
+    await check(emptyDest, parentPaths.selected);
+    const rejected = path.join(base, 'rejected-copy');
+    await assertCliError(invoke('cp', target, rejected, '--parent', source), /--parent must be an ancestor/);
+    await assertCliError(invokeIn(middle, 'cp', target, rejected, '--parent', '..'), /Relative parent path requires --force/);
+    await assert.rejects(lstat(rejected), { code: 'ENOENT' });
   }));
 });

@@ -8,7 +8,7 @@ Feature: config command
     Then stderr reports an argument error and the command fails
 
   Scenario: Reject a scan option
-    When I run config with --no-ignore
+    When I run config with --no-ignore or --parent with or without an empty value
     Then stderr reports that the option is unsupported
 
   Scenario: Reject an unknown configured hash version

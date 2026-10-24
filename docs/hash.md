@@ -30,3 +30,5 @@ The file count and fixed-length hashes make this sequence encoding unambiguous. 
 These are distinct SHA-256 **inputs**. Their outputs are expected to differ under SHA-256's collision resistance; no fixed-length hash can provide a mathematical guarantee that every distinct input has a distinct digest. The BDD suite checks these representative transformations, including the `dir_1/b → b` case.
 
 Only entries selected by the active ignore rules participate. Changing an ignored file does not change the digest. Empty directories and symlinks are outside this file-only contract; a directory rename affects the digest when it changes a visible file's relative path. The snapshot is not atomic if files change during the scan. Selecting a different scan root changes the relative names, even when the CLI executable is the same. Conversely, `hash a/` while in `x/` and `hash ./` while in `x/a/` select the same root and produce the same hash.
+
+`--parent` can add ancestor ignore scopes and thus change which files are visible. It leaves the selected scan root as the relative-path base.

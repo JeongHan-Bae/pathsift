@@ -13,9 +13,12 @@ test('help document contains the complete structured command and option contract
   assert.match(commands.get('archive').arguments, /\.zip/);
   const options = new Map(document.scanOptions.map(option => [option.syntax, option.description]));
   assert.deepEqual([...options.keys()].sort(), [
-    '--ignore-file <filename>', '--no-ignore', '--no-global-ignore', '--force'
+    '--ignore-file <filename>', '--parent [directory]', '--no-ignore', '--no-global-ignore', '--force'
   ].sort());
   assert.ok(options.get('--force').includes('..'));
+  for (const term of ['ancestor', 'bare', 'cwd', 'source']) assert.ok(options.get('--parent [directory]').includes(term));
   assert.ok(document.generalOptions.some(option => option.syntax === '--help, -h'));
   assert.ok(document.notes.some(note => note.includes('Git-style')));
+  assert.ok(document.notes.some(note => note.includes('parent-to-source path')));
+  assert.ok(document.notes.some(note => note.includes('--parent combines with every --ignore-file')));
 });

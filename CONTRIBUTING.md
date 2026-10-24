@@ -5,7 +5,7 @@ This document owns the commit-message format, pull-request summary, review expec
 ## Development flow
 
 1. Use Node.js 22.12 or later, including Node 23, and install from the lockfile with `npm ci`. The checkout launcher uses compiled JavaScript on Node 22–23 and native TypeScript on Node 24+.
-2. Add a focused TDD case for a rule or regression. For CLI behavior, update that command's `.feature` and `.test.mjs` BDD files; keep the shared ignore matrix intact.
+2. Add a focused TDD case for a rule or regression. For CLI behavior, update that command's `.feature` and `.test.mjs` BDD files; keep the five ignore cases crossed with three parent modes intact.
 3. Implement through the owning TypeScript layer. Keep the boot entry small, the application independent of adapters, and TypeScript syntax erasable by Node's native loader.
 4. Run focused checks while developing. Run the final contribution gate after the last file change.
 

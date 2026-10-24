@@ -8,7 +8,7 @@ import { renderTree } from '../core/tree.ts';
 const READ_COMMANDS = new Set(['tree', 'ls', 'find', 'du', 'count', 'hash', 'manifest']);
 
 /** CLI use case. Host operations and output are supplied by the composition root. */
-export async function runCommand({ cmd, args, opts, config }: { cmd: string; args: string[]; opts: { 'ignore-file'?: string[]; 'no-ignore'?: boolean; 'no-global-ignore'?: boolean; force?: boolean }; config: { ignoreFiles: string[]; globalPath: string; hashVersion: HashVersion; bufferLimitBytes: number } }, ports: CommandPorts): Promise<CommandOutput> {
+export async function runCommand({ cmd, args, opts, config }: { cmd: string; args: string[]; opts: { 'ignore-file'?: string[]; 'no-ignore'?: boolean; 'no-global-ignore'?: boolean; parent?: string; force?: boolean }; config: { ignoreFiles: string[]; globalPath: string; hashVersion: HashVersion; bufferLimitBytes: number } }, ports: CommandPorts): Promise<CommandOutput> {
   const ignoreFiles = opts['ignore-file'] || config.ignoreFiles;
   if (!ignoreFiles.length || !ignoreFiles.every(ports.isSimpleFilename)) {
     throw new Error('--ignore-file expects a filename, not a path');
@@ -26,9 +26,16 @@ export async function runCommand({ cmd, args, opts, config }: { cmd: string; arg
       throw new Error(`Relative parent path requires --force: ${value}`);
     }
   }
+  if (opts.parent !== undefined && requiresForce(opts.parent, ports.isAbsolute) && !opts.force) {
+    throw new Error(`Relative parent path requires --force: ${opts.parent}`);
+  }
   const source = ports.resolve(args[0] || '.');
+  const parentPath = opts.parent === undefined ? undefined : ports.resolve(opts.parent);
+  if (parentPath !== undefined && !await ports.isWithin(parentPath, source)) {
+    throw new Error(`--parent must be an ancestor of the source directory: ${parentPath}`);
+  }
   const options: WalkOptions = {
-    ignoreFiles, globalPath: config.globalPath,
+    ignoreFiles, globalPath: config.globalPath, parentPath,
     ignoreEnabled: !opts['no-ignore'], globalEnabled: !opts['no-global-ignore']
   };
   const entries = () => ports.walk(source, options);
