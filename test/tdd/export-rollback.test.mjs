@@ -38,18 +38,20 @@ for (const [label, limit] of [['memory', 1024], ['direct', 1]]) {
     await assert.rejects(ports.copy(entries, destination, limit));
     assert.deepEqual(await readdir(destination), []);
   }));
-  test(`archive ${label} failure removes a newly created destination`, async () => fixture(async ({ base, entries, ports }) => {
-    const destination = path.join(base, 'new', 'out.tar');
-    await assert.rejects(ports.archive(entries, destination, limit));
-    await assertAbsent(destination);
-    await assertAbsent(path.join(base, 'new'));
-  }));
-  test(`archive ${label} failure leaves an existing empty output file empty`, async () => fixture(async ({ base, entries, ports }) => {
-    const destination = path.join(base, 'empty.tar');
-    await writeFile(destination, '');
-    await assert.rejects(ports.archive(entries, destination, limit));
-    assert.equal(await readFile(destination, 'utf8'), '');
-  }));
+  for (const extension of ['zip', 'tar', 'tar.gz']) {
+    test(`archive ${extension} ${label} failure removes a newly created destination`, async () => fixture(async ({ base, entries, ports }) => {
+      const destination = path.join(base, 'new', `out.${extension}`);
+      await assert.rejects(ports.archive(entries, destination, limit));
+      await assertAbsent(destination);
+      await assertAbsent(path.join(base, 'new'));
+    }));
+    test(`archive ${extension} ${label} failure leaves an existing empty output file empty`, async () => fixture(async ({ base, entries, ports }) => {
+      const destination = path.join(base, `empty.${extension}`);
+      await writeFile(destination, '');
+      await assert.rejects(ports.archive(entries, destination, limit));
+      assert.equal(await readFile(destination, 'utf8'), '');
+    }));
+  }
 }
 
 test('copy switches to direct writing if a file grew beyond its metadata estimate', async () => fixture(async ({ base, entries, ports }) => {

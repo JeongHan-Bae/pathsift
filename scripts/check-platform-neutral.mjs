@@ -16,7 +16,7 @@ async function collect(directory) {
 for (const target of targets) await collect(path.join(root, target));
 const errors = [];
 for (const file of files) {
-  const source = ts.createSourceFile(file, await readFile(file, 'utf8'), ts.ScriptTarget.Latest, true);
+    const source = ts.createSourceFile(file, (await readFile(file)).toString('utf8'), ts.ScriptTarget.Latest, true);
   function visit(node) {
     if (ts.isPropertyAccessExpression(node) && ['platform', 'arch'].includes(node.name.text)) {
       const receiver = node.expression.getText(source);

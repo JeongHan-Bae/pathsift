@@ -21,8 +21,9 @@ try {
   const consumer = path.join(sandbox, 'consumer');
   await runNpm(['install', '--prefix', consumer, '--omit=dev', '--ignore-scripts', '--no-audit', '--no-fund', tarball]);
   const packageRoot = path.join(consumer, 'node_modules', 'pathsift');
-  const manifest = JSON.parse(await readFile(path.join(packageRoot, 'package.json'), 'utf8'));
-  if (manifest.bin.pathsift !== './dist/boot/cli-main.js') throw new Error('Published bin does not point to compiled JavaScript');
+  /** @type {{ bin: { pathsift: string } }} */
+  const manifest = JSON.parse((await readFile(path.join(packageRoot, 'package.json'))).toString('utf8'));
+  if (manifest.bin['pathsift'] !== './dist/boot/cli-main.js') throw new Error('Published bin does not point to compiled JavaScript');
   const result = await runCommand(process.execPath, [path.join(root, 'scripts', 'run-bdd.mjs'), 'package'], {
     cwd: root,
     env: {

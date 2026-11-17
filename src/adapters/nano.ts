@@ -14,6 +14,14 @@ function printClip(str: string, max: number) {
   return charArray(str).slice(0, Math.max(0, max)).join('');
 }
 
+async function modeForSave(file: string): Promise<number> {
+  try { return (await fs.stat(file)).mode & 0o777; }
+  catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return 0o600;
+    throw error;
+  }
+}
+
 /** The editor uses only Node built-ins; this is a small nano-style editor,
  *  not a full Vim or Nano implementation. */
 export async function editGlobalIgnore(file: string) {
@@ -103,9 +111,7 @@ export async function editGlobalIgnore(file: string) {
     const tempFile = path.join(path.dirname(file), `.${path.basename(file)}.${process.pid}.tmp`);
     try {
       await fs.mkdir(path.dirname(file), { recursive: true });
-      let mode = 0o600;
-      try { mode = (await fs.stat(file)).mode & 0o777; }
-      catch (err) { if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err; }
+      const mode = await modeForSave(file);
       await fs.writeFile(tempFile, bom + lines.join(eol), { encoding: 'utf8', mode, flag: 'wx' });
       await fs.rename(tempFile, file);
       dirty = false;

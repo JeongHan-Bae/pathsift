@@ -46,3 +46,8 @@ Feature: tree command
     Given multiple directories and files created in mixed name order
     When I run tree
     Then each level lists name-sorted directories first and name-sorted files afterward
+
+  Scenario: Stream tree lines from semantic sibling positions
+    Given visible sibling entries in mixed name order
+    When I run tree
+    Then each directory level is ordered before drawing and lines are emitted using ancestor last-sibling markers

@@ -26,9 +26,7 @@ The checked-in `pathsift.config.json` and `global.ignore` become package-local f
 | `npm run verify:release` | Static, all three behavior layers, audits, package contents, and release preview |
 | `npm run verify:precommit` | Mandatory final contribution gate: release gate, then staged and unstaged Git whitespace checks |
 
-`test/bdd/<command>.feature` records each command's scenarios; the matching `.test.mjs` file executes them with Node's test runner. Every path-processing command runs 15 combinations: the existing five ignore fixtures (0/1/2 ignore-file cases, plus disabled global rules and disabled all filtering) crossed with omitted, empty, and explicit `--parent`. Focused cases cover invalid parents, multi-level scopes, and `--force`. `node-pty` is a development dependency for interactive output and editor tests. The runtime dependency graph does not include test tools.
-
-Each empty-parent matrix case also checks `--parent ""`, bare `--parent`, `--parent --`, and bare `--parent` before another option. The help BDD verifies that all three parent modes and these alternate spellings are documented.
+`test/bdd/<command>.feature` records each command's scenarios; the matching `.test.mjs` file executes them with Node's test runner. The [test contract](../test/AGENTS.md) owns the 15-combination ignore/parent matrix, alternate `--parent` spellings, and per-command assertions. `node-pty` is a development dependency for interactive output and editor tests; it is absent from the production dependency graph.
 
 ## CI and environment limits
 

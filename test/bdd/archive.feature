@@ -52,6 +52,16 @@ Feature: archive command
     When I run archive
     Then the archive contains the expected entries
 
+  Scenario Outline: Archive metadata survives each format
+    Given an empty file, empty nested directory, file with mode and mtime, and relative symlink
+    When I run archive to <format>
+    Then each entry's content, link target, mode, and modification time are represented
+    Examples:
+      | format |
+      | zip |
+      | tar |
+      | tar.gz |
+
   Scenario: Archive with ancestor ignore scopes
     Given a target below two ancestor ignore files
     When I run archive without --parent, with its ancestor, and with an empty --parent from that ancestor

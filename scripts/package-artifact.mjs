@@ -10,7 +10,7 @@ const publishedFields = [
 ];
 
 export async function preparePackage(parent) {
-  const source = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'));
+  const source = JSON.parse((await readFile(path.join(root, 'package.json'))).toString('utf8'));
   if (source.private !== true) throw new Error('Repository root must remain private');
   if (!Array.isArray(source.files) || !source.files.includes('README.md')) {
     throw new Error('Package files must include README.md');

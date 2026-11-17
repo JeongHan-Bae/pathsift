@@ -25,18 +25,18 @@ try {
   const [preview] = JSON.parse(result.stdout);
   const actual = preview.files.map(file => file.path).sort();
   const expected = [
-    'LICENSE', 'README.md', 'docs/architecture.md', 'docs/hash.md', 'global.ignore', 'package.json', 'pathsift.config.json',
+    'LICENSE', 'README.md', 'docs/architecture.md', 'docs/content-types.md', 'docs/hash.md', 'global.ignore', 'package.json', 'pathsift.config.json',
     ...await distFiles(path.join(root, 'dist'))
   ].sort();
   if (JSON.stringify(actual) !== JSON.stringify(expected)) {
     throw new Error(`Package file list differs.\nExpected: ${expected.join(', ')}\nActual: ${actual.join(', ')}`);
   }
-  const packageReadme = await readFile(path.join(directory, 'README.md'), 'utf8');
-  if (packageReadme !== await readFile(path.join(root, 'docs/npm-readme.md'), 'utf8') ||
-      packageReadme === await readFile(path.join(root, 'README.md'), 'utf8')) {
+  const packageReadme = (await readFile(path.join(directory, 'README.md'))).toString('utf8');
+  if (packageReadme !== (await readFile(path.join(root, 'docs/npm-readme.md'))).toString('utf8') ||
+      packageReadme === (await readFile(path.join(root, 'README.md'))).toString('utf8')) {
     throw new Error('Published README must be the npm usage README, not the repository README');
   }
-  const manifest = JSON.parse(await readFile(path.join(directory, 'package.json'), 'utf8'));
+  const manifest = JSON.parse((await readFile(path.join(directory, 'package.json'))).toString('utf8'));
   if (manifest.private !== undefined || manifest.scripts !== undefined || manifest.devDependencies !== undefined) {
     throw new Error('Published manifest must exclude repository-only metadata');
   }

@@ -5,7 +5,6 @@ import path from 'node:path';
 import { runNanoPty } from './support/nano-pty.mjs';
 import { matrix, withFixture, assertCliError } from './support/fixture.mjs';
 
-
 describe('nano', () => {
   it('refuses non-TTY input without writing', async () => withFixture(matrix[0], async ({ packageDir, invoke }) => {
     const file = path.join(packageDir, 'global.ignore');
@@ -29,5 +28,7 @@ describe('nano', () => {
     await assertCliError(invoke('nano', '--parent', ''), /nano does not accept --parent/);
     await assertCliError(invoke('nano', '--parent'), /nano does not accept --parent/);
   }));
-  it('refuses positional arguments', async () => withFixture(matrix[0], ({ invoke }) => assertCliError(invoke('nano', 'extra'), /nano takes no positional arguments/)));
+  it('refuses positional arguments', async () => withFixture(matrix[0], async ({ invoke }) => {
+    await assertCliError(invoke('nano', 'extra'), /nano takes no positional arguments/);
+  }));
 });

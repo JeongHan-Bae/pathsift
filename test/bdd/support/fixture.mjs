@@ -1,17 +1,21 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
 import { cp, lstat, mkdtemp, mkdir, readFile, readdir, readlink, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createAncestorLayout } from '../../support/ancestor-layout.mjs';
 
-const exec = promisify(execFile);
 const repository = fileURLToPath(new URL('../../../', import.meta.url));
 const mode = process.env.PATHSIFT_TEST_MODE || 'compiled';
 const artifactRoot = process.env.PATHSIFT_TEST_PACKAGE_ROOT || repository;
 const modulesRoot = process.env.PATHSIFT_TEST_MODULES_ROOT || path.join(repository, 'node_modules');
+
+/** @typedef {{ stdout: string, stderr: string }} CliOutput */
+/** @typedef {(...args: string[]) => Promise<CliOutput>} CliInvoke */
+/** @typedef {{ name: string, count: number, flags: string[], paths: string[] }} TestVariant */
+/** @typedef {{ base: string, packageDir: string, source: string, bin: string, invoke: CliInvoke, invokeIn: (cwd: string, ...args: string[]) => Promise<CliOutput>, variant: TestVariant }} TestFixture */
 
 export const matrix = [
   { name: 'zero ignore files', count: 0, flags: [], paths: ['always.txt', 'link-to-sub', 'one-only.txt', 'sub', 'sub/child.txt', 'sub/nested-ignore.txt', 'two-only.txt'] },
@@ -35,7 +39,6 @@ export const contents = {
 
 export const kind = pathName => pathName === 'sub' ? 'dir' : pathName === 'link-to-sub' ? 'symlink' : 'file';
 export const filePaths = variant => variant.paths.filter(p => kind(p) === 'file');
-export const fileBytes = variant => filePaths(variant).reduce((total, p) => total + Buffer.byteLength(contents[p]), 0);
 export const hashOf = p => createHash('sha256').update(contents[p]).digest('hex');
 export const display = p => p + (kind(p) === 'dir' ? '/' : '');
 
@@ -91,18 +94,16 @@ export async function withParentMatrixFixture(variant, fn) {
 
 export async function withParentFixture(fn) {
   return withFixture(matrix[0], async fixture => {
-    const parent = path.join(fixture.base, 'parent');
-    const middle = path.join(parent, 'middle');
-    const target = path.join(middle, 'target');
-    await mkdir(target, { recursive: true });
-    await writeFile(path.join(parent, '.gitignore'), 'middle/target/outer.txt\n');
-    await writeFile(path.join(parent, '.deployignore'), 'middle/target/second.txt\n');
-    await writeFile(path.join(middle, '.gitignore'), 'target/middle.txt\n');
+    const { parent, middle, target } = await createAncestorLayout(fixture.base);
     for (const [name, value] of Object.entries(parentContents)) await writeFile(path.join(target, name), value);
     await fn({ ...fixture, parent, middle, target });
   });
 }
 
+/**
+ * @param {TestVariant} variant - The ignore-rule fixture variant.
+ * @param {(fixture: TestFixture) => Promise<unknown>} fn - The scenario using the prepared fixture.
+ */
 export async function withFixture(variant, fn) {
   const base = await mkdtemp(path.join(tmpdir(), 'pathsift-bdd-'));
   try {
@@ -125,17 +126,27 @@ export async function withFixture(variant, fn) {
     }
     await symlink('sub', path.join(source, 'link-to-sub'), 'dir');
     const bin = mode === 'source' ? path.join(packageDir, 'bin', 'pathsift.cjs') : path.join(packageDir, 'dist', 'boot', 'cli-main.js');
-    const invoke = (...args) => exec(process.execPath, [bin, ...args], { cwd: base });
-    const invokeIn = (cwd, ...args) => exec(process.execPath, [bin, ...args], { cwd });
+    /** @type {(cwd: string, ...args: string[]) => Promise<CliOutput>} */
+    const invokeIn = (cwd, ...args) => new Promise((resolve, reject) => {
+      execFile(process.execPath, [bin, ...args], { cwd, encoding: 'utf8' }, (error, stdout, stderr) => {
+        if (error) {
+          Object.assign(error, { stdout, stderr });
+          reject(error);
+        } else resolve({ stdout, stderr });
+      });
+    });
+    /** @type {CliInvoke} */
+    const invoke = (...args) => invokeIn(base, ...args);
     await fn({ base, packageDir, source, bin, invoke, invokeIn, variant });
   } finally { await rm(base, { recursive: true, force: true }); }
 }
 
 export async function assertCliError(promise, pattern) {
   await assert.rejects(promise, error => {
-    assert.match(error.stderr, pattern);
-    assert.equal(error.stdout, '');
-    assert.notEqual(error.code, 0);
+    const failure = /** @type {Error & { stderr: string, stdout: string, code: number | string }} */ (error);
+    assert.match(failure.stderr, pattern);
+    assert.equal(failure.stdout, '');
+    assert.notEqual(failure.code, 0);
     return true;
   });
 }

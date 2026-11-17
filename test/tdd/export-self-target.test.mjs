@@ -18,34 +18,39 @@ async function fixture(fn) {
   } finally { await rm(base, { recursive: true, force: true }); }
 }
 
+async function assertCopiedChild(destination) {
+  assert.equal(await readFile(path.join(destination, 'one.txt'), 'utf8'), 'abc');
+  assert.ok(!(await readdir(destination)).includes('a'));
+}
+
+async function assertArchivedChild(destination) {
+  assert.ok((await lstat(destination)).size > 0);
+  const header = await readFile(destination);
+  assert.equal(header.subarray(0, 7).toString(), 'one.txt');
+}
+
 test('direct copy can create a missing child directory without self-copying', async () => fixture(async ({ source, config, ports }) => {
   const destination = path.join(source, 'a');
   await runCommand({ cmd: 'cp', args: [source, destination], opts: {}, config }, ports);
-  assert.equal(await readFile(path.join(destination, 'one.txt'), 'utf8'), 'abc');
-  assert.ok(!(await readdir(destination)).includes('a'));
+  await assertCopiedChild(destination);
 }));
 
 test('direct archive can target an empty file inside the source without self-inclusion', async () => fixture(async ({ source, config, ports }) => {
   const destination = path.join(source, 'out.tar');
   await writeFile(destination, '');
   await runCommand({ cmd: 'archive', args: [source, destination], opts: {}, config }, ports);
-  assert.ok((await lstat(destination)).size > 0);
-  const header = await readFile(destination);
-  assert.equal(header.subarray(0, 7).toString(), 'one.txt');
+  await assertArchivedChild(destination);
 }));
 
 test('direct copy can fill an existing empty child directory', async () => fixture(async ({ source, config, ports }) => {
   const destination = path.join(source, 'a');
   await mkdir(destination);
   await runCommand({ cmd: 'cp', args: [source, destination], opts: {}, config }, ports);
-  assert.equal(await readFile(path.join(destination, 'one.txt'), 'utf8'), 'abc');
-  assert.ok(!(await readdir(destination)).includes('a'));
+  await assertCopiedChild(destination);
 }));
 
 test('direct archive can create a missing output file inside the source', async () => fixture(async ({ source, config, ports }) => {
   const destination = path.join(source, 'out.tar');
   await runCommand({ cmd: 'archive', args: [source, destination], opts: {}, config }, ports);
-  assert.ok((await lstat(destination)).size > 0);
-  const header = await readFile(destination);
-  assert.equal(header.subarray(0, 7).toString(), 'one.txt');
+  await assertArchivedChild(destination);
 }));

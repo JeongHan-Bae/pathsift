@@ -4,6 +4,10 @@ const releaseTag = /^v((?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*))$
 const registry = 'https://registry.npmjs.org/';
 const repository = 'git+https://github.com/JeongHan-Bae/pathsift.git';
 
+/** @typedef {{ name?: string, version?: string, private?: boolean, repository?: { url?: string }, bin?: { pathsift?: string }, publishConfig?: { registry?: string, access?: string, tag?: string }, dependencies?: Record<string, string>, scripts?: object, devDependencies?: object }} ReleaseManifest */
+/** @typedef {{ name?: string, version?: string, packages?: Record<string, { name?: string, version?: string, dependencies?: Record<string, string> }> }} ReleaseLock */
+/** @typedef {{ name?: string, version?: string, filename?: string, integrity?: string, shasum?: string, files?: Array<{ path: string }> }} PackMetadata */
+
 export function validateTrustedPublisherRuntime(nodeVersion, npmVersion) {
   const parse = value => /^(\d+)\.(\d+)\.(\d+)$/.exec(value)?.slice(1).map(Number);
   const node = parse(nodeVersion);
@@ -16,6 +20,11 @@ export function validateTrustedPublisherRuntime(nodeVersion, npmVersion) {
   }
 }
 
+/**
+ * @param {string | undefined} tag - The requested stable release tag.
+ * @param {ReleaseManifest} manifest - The repository package manifest.
+ * @param {ReleaseLock} lock - The synchronized root npm lockfile.
+ */
 export function validateReleaseMetadata(tag, manifest, lock) {
   const match = releaseTag.exec(tag ?? '');
   if (!match) throw new Error(`Invalid release tag: ${String(tag)}; expected vX.Y.Z`);
@@ -29,8 +38,8 @@ export function validateReleaseMetadata(tag, manifest, lock) {
     throw new Error(`package-lock.json is not synchronized with pathsift@${version}`);
   }
   if (manifest.repository?.url !== repository) throw new Error('Package repository must match the trusted GitHub repository');
-  if (manifest.bin?.pathsift !== './dist/boot/cli-main.js') throw new Error('Release bin must point to compiled JavaScript');
-  if (manifest.publishConfig?.registry !== registry || manifest.publishConfig.access !== 'public') {
+  if (manifest.bin?.['pathsift'] !== './dist/boot/cli-main.js') throw new Error('Release bin must point to compiled JavaScript');
+  if (manifest.publishConfig?.['registry'] !== registry || manifest.publishConfig.access !== 'public') {
     throw new Error('Release registry and access must target the public npm registry');
   }
   if (manifest.publishConfig.tag !== undefined && manifest.publishConfig.tag !== 'latest') {
@@ -39,6 +48,15 @@ export function validateReleaseMetadata(tag, manifest, lock) {
   return { tag, version };
 }
 
+/**
+ * @param {string} version - The version named by the release tag.
+ * @param {PackMetadata} metadata - npm pack metadata for the staged archive.
+ * @param {ReleaseManifest} manifest - The generated production manifest.
+ * @param {string} readme - README text found in the packed artifact.
+ * @param {string} expectedReadme - The npm README source text.
+ * @param {string} integrity - Calculated SHA-512 integrity value.
+ * @param {string} shasum - Calculated SHA-1 value for npm's shasum field.
+ */
 export function validateReleaseArtifact(version, metadata, manifest, readme, expectedReadme, integrity, shasum) {
   if (metadata?.name !== 'pathsift' || metadata.version !== version || metadata.filename !== `pathsift-${version}.tgz`) {
     throw new Error('Packed archive identity differs from the release tag');
@@ -46,19 +64,19 @@ export function validateReleaseArtifact(version, metadata, manifest, readme, exp
   if (metadata.integrity !== integrity || metadata.shasum !== shasum) {
     throw new Error('Packed archive integrity differs from npm pack metadata');
   }
-  if (manifest?.name !== 'pathsift' || manifest.version !== version || manifest.bin?.pathsift !== './dist/boot/cli-main.js') {
+  if (manifest?.name !== 'pathsift' || manifest.version !== version || manifest.bin?.['pathsift'] !== './dist/boot/cli-main.js') {
     throw new Error('Published package identity or compiled bin differs from the release tag');
   }
   if (manifest.private !== undefined || manifest.scripts !== undefined || manifest.devDependencies !== undefined) {
     throw new Error('Published package contains repository-only manifest fields');
   }
-  if (manifest.publishConfig?.registry !== registry || manifest.publishConfig.access !== 'public' ||
+  if (manifest.publishConfig?.['registry'] !== registry || manifest.publishConfig.access !== 'public' ||
       (manifest.publishConfig.tag !== undefined && manifest.publishConfig.tag !== 'latest')) {
     throw new Error('Published package registry, access, or dist-tag is incorrect');
   }
   if (readme !== expectedReadme) throw new Error('Published README differs from docs/npm-readme.md');
   const files = new Set(metadata.files?.map(file => file.path));
-  for (const required of ['LICENSE', 'README.md', 'package.json', 'dist/boot/cli-main.js', 'docs/architecture.md', 'docs/hash.md', 'global.ignore', 'pathsift.config.json']) {
+  for (const required of ['LICENSE', 'README.md', 'package.json', 'dist/boot/cli-main.js', 'docs/architecture.md', 'docs/content-types.md', 'docs/hash.md', 'global.ignore', 'pathsift.config.json']) {
     if (!files.has(required)) throw new Error(`Packed archive is missing ${required}`);
   }
   if ([...files].some(file => file.endsWith('.ts') || file.startsWith('src/') || file.startsWith('test/'))) {

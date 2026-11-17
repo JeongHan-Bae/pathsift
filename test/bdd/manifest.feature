@@ -41,3 +41,8 @@ Feature: manifest command
   Scenario: JSON on a TTY
     When I run manifest on a TTY
     Then stdout is still unstyled parseable JSON
+
+  Scenario: Stream a JSON document
+    Given visible entries in the source directory
+    When I run manifest
+    Then each entry is serialized incrementally and the completed stdout is valid JSON

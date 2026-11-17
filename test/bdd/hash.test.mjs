@@ -14,7 +14,7 @@ const expectedTreeHash = variant => {
 
 function treeDigest(output, source) {
   const line = output.trimEnd().split('\n').at(-1);
-  const match = /^tree-sha256  ([a-f0-9]{64})  (.+)$/.exec(line);
+  const match = /^tree-sha256 {2}([a-f0-9]{64}) {2}(.+)$/.exec(line);
   assert.ok(match, `missing tree digest: ${line}`);
   assert.equal(match[2], source);
   return match[1];
@@ -68,10 +68,10 @@ describe('hash', () => {
     await mkdir(path.join(source, '0'));
     await writeFile(path.join(source, '0', 'first.txt'), 'fixed');
     const before = (await invoke('hash', source)).stdout;
-    assert.match(before.split('\n')[0], /  0\/first\.txt$/);
+    assert.match(before.split('\n')[0], / {2}0\/first\.txt$/);
     await rename(path.join(source, '0', 'first.txt'), path.join(source, '0-first.txt'));
     const after = (await invoke('hash', source)).stdout;
-    assert.match(after.split('\n')[0], /  0-first\.txt$/);
+    assert.match(after.split('\n')[0], / {2}0-first\.txt$/);
     assert.notEqual(treeDigest(after, source), treeDigest(before, source));
   }));
   it('distinguishes a, dir_1(b,c,d) from a, b, dir_1(c,d)', async () => withFixture(matrix[0], async ({ source, invoke }) => {
@@ -81,18 +81,18 @@ describe('hash', () => {
     await writeFile(path.join(source, 'a'), 'A');
     for (const name of ['b', 'c', 'd']) await writeFile(path.join(folder, name), name.toUpperCase());
     const before = (await invoke('hash', source, '--no-global-ignore')).stdout;
-    const oldB = before.match(/file-sha256  ([a-f0-9]{64})  dir_1\/b/)[1];
+    const oldB = before.match(/file-sha256 {2}([a-f0-9]{64}) {2}dir_1\/b/)[1];
     await rename(path.join(folder, 'b'), path.join(source, 'b'));
     const after = (await invoke('hash', source, '--no-global-ignore')).stdout;
-    const newB = after.match(/file-sha256  ([a-f0-9]{64})  b(?:\n|$)/)[1];
+    const newB = after.match(/file-sha256 {2}([a-f0-9]{64}) {2}b(?:\n|$)/)[1];
     assert.notEqual(newB, oldB);
     assert.notEqual(treeDigest(after, source), treeDigest(before, source));
   }));
   it('distinguishes equal content in differently named files', async () => withFixture(matrix[0], async ({ source, invoke }) => {
     await writeFile(path.join(source, 'duplicate.txt'), 'abc');
     const output = (await invoke('hash', source)).stdout;
-    const first = output.match(/file-sha256  ([a-f0-9]{64})  always\.txt/)[1];
-    const duplicate = output.match(/file-sha256  ([a-f0-9]{64})  duplicate\.txt/)[1];
+    const first = output.match(/file-sha256 {2}([a-f0-9]{64}) {2}always\.txt/)[1];
+    const duplicate = output.match(/file-sha256 {2}([a-f0-9]{64}) {2}duplicate\.txt/)[1];
     assert.notEqual(first, duplicate);
   }));
   it('keeps the same tree digest when the whole scan root moves from a to b', async () => withFixture(matrix[2], async ({ base, source, invoke }) => {
@@ -110,8 +110,8 @@ describe('hash', () => {
     await writeFile(path.join(nested, 'file.txt'), 'fixed');
     const outer = (await invoke('hash', source, '--no-global-ignore')).stdout;
     const inner = (await invoke('hash', nested, '--no-global-ignore')).stdout;
-    assert.match(outer, /  sub\/file\.txt\n/);
-    assert.match(inner, /  file\.txt\n/);
+    assert.match(outer, / {2}sub\/file\.txt\n/);
+    assert.match(inner, / {2}file\.txt\n/);
     assert.notEqual(treeDigest(outer, source), treeDigest(inner, nested));
     const fromParent = (await invokeIn(source, 'hash', 'sub', '--no-global-ignore')).stdout;
     const fromNested = (await invokeIn(nested, 'hash', './', '--no-global-ignore')).stdout;

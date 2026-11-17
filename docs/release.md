@@ -2,9 +2,10 @@
 
 ## Current state
 
-`pathsift@0.0.1` was published on npm with the `alpha` dist-tag. The repository is at `0.1.0`, pending its first tag-driven formal release to `latest`. This is one CLI package: there is no separate Core or CLI publication. The source root is private; the generated tarball under `release-preview/` is the publishable package.
+`pathsift@0.1.0` is published on npm with the `latest` dist-tag; `0.0.1` remains on `alpha`. This checkout is `0.1.1`, pending its next tag-driven release. This is one CLI package: there is no separate Core or CLI publication. The source root is private; the generated tarball under `release-preview/` is the publishable package.
 
 The installed config and global ignore file are package-local; [build.md](build.md) owns their installation and write-access behavior.
+The [build contract](build.md) owns the production dependency and package-file inventory. Installed-package BDD must validate local WASM classification and ZIP, TAR, and TAR.GZ output. Consumers can inspect the included [content-type rules](content-types.md).
 
 ## Release tag and npm trust
 

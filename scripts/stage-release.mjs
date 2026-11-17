@@ -22,8 +22,7 @@ async function packedFiles(directory, prefix = '') {
   return files;
 }
 
-const staging = await mkdtemp(path.join(root, '.pathsift-preview-'));
-try {
+async function stageRelease(staging) {
   const packageInput = await preparePackage(staging);
   const result = await runCommand(process.execPath, [npmCli, 'pack', '--json', '--pack-destination', staging], { cwd: packageInput, timeoutMs: 60000 });
   if (result.status !== 0) throw new Error(`npm pack failed:\n${result.stdout}\n${result.stderr}`);
@@ -41,12 +40,11 @@ try {
   await writeFile(path.join(staging, 'pack-metadata.json'), JSON.stringify(packed, null, 2) + '\n');
   await writeFile(path.join(staging, marker), markerText);
   await rm(packageInput, { recursive: true });
-  let previewExists = false;
-  try { await stat(preview); previewExists = true; }
-  catch (error) { if (error.code !== 'ENOENT') throw error; }
+  const previewExists = (await readdir(root)).includes(path.basename(preview));
   if (previewExists) {
     const recognized = (await stat(preview)).isDirectory() &&
-      await readFile(path.join(preview, marker), 'utf8').catch(() => null) === markerText;
+      (await readdir(preview)).includes(marker) &&
+      (await readFile(path.join(preview, marker))).toString('utf8') === markerText;
     if (!recognized) throw new Error(`Refusing to replace unrecognized directory: ${preview}`);
     await rm(preview, { recursive: true });
   }
@@ -54,7 +52,11 @@ try {
   console.log(`Release preview: ${preview}`);
   console.log(`Packed archive: ${path.join(preview, packed.filename)}`);
   console.log(`Extracted package: ${path.join(preview, 'package')} (${actual.length} files)`);
-} catch (error) {
-  await rm(staging, { recursive: true, force: true });
-  throw error;
 }
+
+const staging = await mkdtemp(path.join(root, '.pathsift-preview-'));
+let staged = false;
+try {
+  await stageRelease(staging);
+  staged = true;
+} finally { if (!staged) await rm(staging, { recursive: true, force: true }); }

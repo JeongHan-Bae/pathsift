@@ -11,7 +11,8 @@ async function scan(directory) {
     const file = path.join(directory, entry.name);
     if (entry.isDirectory()) { await scan(file); continue; }
     if (!file.endsWith('.ts')) continue;
-    const source = ts.createSourceFile(file, await readFile(file, 'utf8'), ts.ScriptTarget.Latest, true);
+    const sourceText = (await readFile(file)).toString('utf8');
+    const source = ts.createSourceFile(file, sourceText, ts.ScriptTarget.Latest, true);
     for (const statement of source.statements) {
       if (!ts.isImportDeclaration(statement) && !ts.isExportDeclaration(statement)) continue;
       const specifier = statement.moduleSpecifier;
@@ -21,8 +22,9 @@ async function scan(directory) {
       const layer = relative[0];
       const importedLayer = value.startsWith('.') ? path.relative(sourceRoot, path.resolve(path.dirname(file), value)).split(path.sep)[0] : '';
       if (value.startsWith('.') && !value.endsWith('.ts')) problems.push(`${file}: relative TypeScript import must end with .ts: ${value}`);
-      if (['core', 'application'].includes(layer) && (value.startsWith('node:') || (!value.startsWith('.') && !value.startsWith('type:')))) problems.push(`${file}: ${layer} cannot import host or third-party modules: ${value}`);
+      if (['core', 'std', 'application'].includes(layer) && (value.startsWith('node:') || (!value.startsWith('.') && !value.startsWith('type:')))) problems.push(`${file}: ${layer} cannot import host or third-party modules: ${value}`);
       if (layer === 'core' && importedLayer && importedLayer !== 'core') problems.push(`${file}: core cannot import ${importedLayer}`);
+      if (layer === 'std' && ['application', 'adapters', 'boot'].includes(importedLayer)) problems.push(`${file}: std cannot import ${importedLayer}`);
       if (layer === 'application' && ['adapters', 'boot'].includes(importedLayer)) problems.push(`${file}: application cannot import ${importedLayer}`);
       if (layer === 'adapters' && ['application', 'boot'].includes(importedLayer)) problems.push(`${file}: adapter cannot import ${importedLayer}`);
     }

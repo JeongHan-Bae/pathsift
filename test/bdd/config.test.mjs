@@ -23,10 +23,25 @@ describe('config', () => {
     await writeFile(path.join(packageDir, 'pathsift.config.json'), JSON.stringify({ ignoreFiles: ['.gitignore'], globalIgnore: 'global.ignore', hashVersion: 1, bufferLimitBytes: 0 }));
     await assertCliError(invoke('config'), /bufferLimitBytes.*positive safe integer/);
   }));
+  it('validates JSON field types before using them', async () => withFixture(matrix[0], async ({ packageDir, invoke }) => {
+    const configPath = path.join(packageDir, 'pathsift.config.json');
+    const valid = { ignoreFiles: ['.gitignore'], globalIgnore: 'global.ignore', hashVersion: 1, bufferLimitBytes: 1073741824 };
+    for (const [value, error] of [
+      [null, /Configuration must be an object/],
+      [{ ...valid, ignoreFiles: [17] }, /ignoreFiles.*simple filenames/],
+      [{ ...valid, globalIgnore: 17 }, /globalIgnore.*relative file path/],
+      [{ ...valid, bufferLimitBytes: '100' }, /bufferLimitBytes.*positive safe integer/]
+    ]) {
+      await writeFile(configPath, JSON.stringify(value));
+      await assertCliError(invoke('config'), error);
+    }
+  }));
   it('refuses scan options', async () => withFixture(matrix[0], async ({ invoke }) => {
     await assertCliError(invoke('config', '--no-ignore'), /config does not accept --no-ignore/);
     await assertCliError(invoke('config', '--parent', ''), /config does not accept --parent/);
     await assertCliError(invoke('config', '--parent'), /config does not accept --parent/);
   }));
-  it('refuses positional arguments', async () => withFixture(matrix[0], ({ invoke }) => assertCliError(invoke('config', 'extra'), /config takes no positional arguments/)));
+  it('refuses positional arguments', async () => withFixture(matrix[0], async ({ invoke }) => {
+    await assertCliError(invoke('config', 'extra'), /config takes no positional arguments/);
+  }));
 });

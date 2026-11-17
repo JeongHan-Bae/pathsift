@@ -4,7 +4,7 @@
 
 pathsift is a single-package CLI for inspecting and exporting directory trees with Git-style ignore rules. It does not edit scanned files, traverse symlinked directories, or provide `mv` or recursive `rm`. The interactive `nano` command edits only the package's `global.ignore` file. Copy and archive accept missing or existing empty destinations and restore that state after a failed write.
 
-Read [CONTRIBUTING.md](CONTRIBUTING.md) before changing the project. It owns contribution and handoff procedure. [docs/development.md](docs/development.md) owns local commands and CI, [docs/build.md](docs/build.md) owns compilation and package contents, [docs/hash.md](docs/hash.md) owns the two-level hash contract, and [docs/release.md](docs/release.md) owns release readiness. This file owns implementation boundaries and behavior that must stay true.
+Read [CONTRIBUTING.md](CONTRIBUTING.md) before changing the project. It owns contribution and handoff procedure. [docs/development.md](docs/development.md) owns local commands and CI, [docs/build.md](docs/build.md) owns compilation and package contents, [docs/hash.md](docs/hash.md) owns the two-level hash contract, [docs/content-types.md](docs/content-types.md) owns Text/Binary classification, and [docs/release.md](docs/release.md) owns release readiness. This file owns implementation boundaries and behavior that must stay true.
 
 ## Source and package shape
 
@@ -16,11 +16,13 @@ Use Node.js `>=22.12.0`. The archive dependency must support this continuous ran
 
 ```text
 src/boot/cli-main.ts -> src/application/run.ts -> src/core/*
+                     -> src/std/* -> src/core/*
                      -> src/adapters/* -> Node APIs and runtime dependencies
 ```
 
 - `src/core/` contains pure rules and result/port contracts. It must not import Node APIs, adapters, or the CLI entrypoint.
-- `src/application/` coordinates commands through injected ports and returns a structured result. It may import core modules, but not adapters or Node APIs.
+- `src/std/` provides reusable, dependency-free default implementations of core contracts. It may import core modules, but not adapters, the application, boot, Node APIs, or runtime dependencies.
+- `src/application/` coordinates commands through injected ports and returns a structured result. It may import core and standard modules, but not adapters or Node APIs.
 - `src/adapters/` owns filesystem traversal, ignore matching, hashing, archiving, config access, terminal editing, and output. The output adapter checks its own target stream for TTY support and uses Ink/React only for suitable interactive text output. JSON output stays plain. Adapters must not import application or boot modules.
 - `src/boot/` parses arguments, composes adapters, and reports errors on stderr with a nonzero exit status. Help is a structured document produced by the CLI output adapter and then serialized for display.
 
@@ -33,7 +35,7 @@ Add a port only when the application needs an external capability. Keep path nor
 - `--parent [directory]` on every path-processing command collects selected ignore files from that ancestor through the scanned source. Omission starts at the source; a bare option or empty value starts at the current directory, including before `--` or another option. The parent must contain the source. Ancestor collection reads only ignore files along that path, without walking siblings or changing the source-relative output base. A parent path containing a relative `..` segment requires `--force`.
 - Symlinked directories are reported but never traversed. Copy and archive preserve links. Before a single ignore-aware walk, both export commands reject nonempty destinations. If an empty output lies inside the source, the walker skips that exact output entry. On handled export errors, rollback removes a newly created output or leaves a previously empty output empty; do not claim crash-safe filesystem transactions. `bufferLimitBytes` defaults to 1 GiB of visible regular-file bytes; smaller exports buffer data in memory, while larger exports write directly with rollback.
 - Relative source or destination paths containing a `..` segment require `--force`. Absolute paths and current-directory descendants do not. Without `--force`, the CLI reports an error on stderr and exits nonzero. `--force` does not disable destination containment or overwrite checks.
-- `manifest` writes valid JSON to stdout; errors stay on stderr. Other read commands use terminal text output. TTY styling must not appear in pipes or JSON.
+- On success, `manifest` writes valid JSON to stdout; a later scan error can leave an incomplete JSON prefix there while the error goes to stderr. Other read commands use terminal text output. TTY styling must not appear in pipes or JSON.
 - `pathsift.config.json` declares `hashVersion: 1`; reject missing or unsupported versions. Future formats need a deliberate implementation and tests.
 - `hash` uses two levels: each visible regular file hash combines a filename SHA-256 and a content SHA-256; the tree hash combines those file hashes in stable filename order. A rename or transfer of bytes across visible files must change the relevant hashes, subject to SHA-256 collision resistance.
 - `nano` requires an interactive TTY and must not write when TTY support is unavailable.

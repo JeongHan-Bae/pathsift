@@ -1,21 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, symlink, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, symlink, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { walk } from '../../dist/adapters/ignore-walker.js';
 import { createNodeFilesystemPorts } from '../../dist/adapters/node-filesystem.js';
+import { createAncestorLayout } from '../support/ancestor-layout.mjs';
 
 test('collects ignore files along the selected parent-to-root path only', async () => {
   const base = await mkdtemp(path.join(tmpdir(), 'pathsift-ancestor-'));
   try {
-    const parent = path.join(base, 'parent');
-    const middle = path.join(parent, 'middle');
-    const target = path.join(middle, 'target');
-    await mkdir(target, { recursive: true });
-    await writeFile(path.join(parent, '.gitignore'), 'middle/target/outer.txt\n');
-    await writeFile(path.join(parent, '.deployignore'), 'middle/target/second.txt\n');
-    await writeFile(path.join(middle, '.gitignore'), 'target/middle.txt\n');
+    const { parent, middle, target } = await createAncestorLayout(base);
     await writeFile(path.join(target, '.gitignore'), 'local.txt\n');
     for (const name of ['outer.txt', 'middle.txt', 'second.txt', 'local.txt', 'visible.txt']) {
       await writeFile(path.join(target, name), name);

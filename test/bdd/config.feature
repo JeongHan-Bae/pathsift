@@ -25,3 +25,8 @@ Feature: config command
     Given bufferLimitBytes is zero in the package config
     When I run config
     Then stderr reports the invalid limit
+
+  Scenario: Reject malformed JSON field types
+    Given the package config is a non-object or has incorrectly typed ignore, path, or buffer fields
+    When I run config
+    Then stderr reports the invalid field without using it as a validated value

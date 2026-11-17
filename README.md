@@ -23,8 +23,8 @@ The [architecture document](docs/architecture.md) explains the dependency direct
 - Run `npm ci` and `npm run build` in this directory. Use `npm run stage:release` to generate a visible preview of the actual npm package.
 - Run `node bin/pathsift.cjs ...` from a checkout. Node 22 and 23 use compiled JavaScript; Node 24+ runs TypeScript
   source natively.
-- `archiver` 8 supplies archive output and declares support for this continuous Node range. The npm package's `pathsift`
-  bin points directly to compiled `dist/boot/cli-main.js`. `pathsift@0.0.1` has been published with the npm `alpha` dist-tag; this checkout is version `0.1.0`.
+- `zip-stream` 7 and `tar-stream` 3 supply archive output for this continuous Node range. The npm package's `pathsift`
+  bin points directly to compiled `dist/boot/cli-main.js`. See [release readiness](docs/release.md) for published versions and the next release.
 
 `pathsift.config.json` and `global.ignore` live beside the CLI package. `pathsift config` prints their absolute paths and the active hash version.
 `pathsift nano` edits that package's `global.ignore`, so its installation directory must be writable for editing. Install under a user-writable npm prefix if you need `nano`. A global reinstall may replace edits to that installed file; the checked-in template still has `.git/` commented out.
@@ -32,14 +32,16 @@ The [architecture document](docs/architecture.md) explains the dependency direct
 ## Command reference
 
 For commands with `[directory]`, omitting it scans the current directory. In `tree`, each level shows directories first, then files and symlinks; names are sorted within each group. A source must be a directory. Paths in results
-are relative to that source unless a command explicitly prints the absolute root. `pathsift` with no command prints
-help.
+are relative to that source unless a command explicitly prints the absolute root. `pathsift --help` lists commands;
+`pathsift <command> --help` shows that command's usage and applicable options without scanning. For example, run
+`pathsift find --help` or `pathsift where --help`. After `--`, a help-looking string is a literal argument.
 
 | Command    | Parameters                                             | Result                                                                      | Accepted options       |
 |------------|--------------------------------------------------------|-----------------------------------------------------------------------------|------------------------|
 | `tree`     | `[directory]`                                          | Branch drawing with directories first at each level, then counts and regular-file bytes           | Scan options, `--help` |
 | `ls`       | `[directory]`                                          | Visible entries immediately inside the root                                 | Scan options, `--help` |
-| `find`     | `[directory]`                                          | Every visible relative path, recursively                                    | Scan options, `--help` |
+| `find`     | `[directory]`                                          | Visible relative paths, optionally filtered by type, name, depth, size, and time | Scan and find options, `--help` |
+| `where`    | `[directory] <query>`                                  | Visible regular files whose basename matches a case-sensitive query        | Scan and matching options, `--help` |
 | `count`    | `[directory]`                                          | Number of visible directories and regular files, plus their file bytes      | Scan options, `--help` |
 | `du`       | `[directory]`                                          | Sum of visible regular-file logical bytes, then a tab and the absolute root | Scan options, `--help` |
 | `hash`     | `[directory]`                                          | Two-level SHA-256: path-and-content file hashes, then a combined tree hash  | Scan options, `--help` |
@@ -51,12 +53,12 @@ help.
 | `help`     | None                                                   | Print command and option help                                               | `--help` only          |
 
 `nano`, `config`, and `help` reject positional arguments and scan options with a nonzero exit status and a message on
-stderr. The global `--help` option takes precedence and prints help for any invocation. An unknown command or option
+stderr. `--help` takes precedence over a recognized command's required arguments and prints that command's help. An unknown command or option
 also fails on stderr.
 
 ### Scan options
 
-These options apply to `tree`, `ls`, `find`, `count`, `du`, `hash`, `manifest`, `cp`, and `archive`:
+These options apply to `tree`, `ls`, `find`, `where`, `count`, `du`, `hash`, `manifest`, `cp`, and `archive`:
 
 | Option                     | Meaning                                                                                                                      |
 |----------------------------|------------------------------------------------------------------------------------------------------------------------------|
@@ -74,11 +76,23 @@ traversal or export.
 
 Bare `--parent` means the current directory at the end of a command, before `--`, or before another option such as `--no-ignore`. Use `--parent=<directory>` when a directory name itself begins with `-`.
 
-The parent modes combine with the ignore-file rules: use no `--parent`, `--parent ""`, or an explicit ancestor regardless of how many matching ignore files exist. The BDD suite checks the five ignore cases crossed with all three parent modes for every path-processing command.
+`where [directory] <query>` searches visible regular-file basenames in case-sensitive exact (default), contains, or glob mode. With one positional argument it searches the current directory; with two, the directory comes first. See the [package usage guide](docs/npm-readme.md) for query syntax and option-terminator details.
+
+`find` is a project-oriented, Gitignore-aware filesystem filter. It preserves walker order and combines type, basename, depth, size, and modification-time filters with AND. It is not POSIX `find` compatible; its exact options and scope are in the [package usage guide](docs/npm-readme.md) and `find --help`. Use `where` for quick filename lookup of visible regular files.
+
+`--type file` checks filesystem metadata; `--type text|binary` delegates best-effort content detection for regular files to a replaceable adapter. The exact MIME, charset, and sampling rules are in [content types](docs/content-types.md).
+
+`tree`, `ls`, `find`, `where`, `hash`, and `manifest` stream results as scanning progresses; `count` and `du` print totals afterward. The CLI stages up to 1,024 semantic items during temporary stdout backpressure. See [architecture](docs/architecture.md) for ordering, buffering, and error behavior.
+
+The parent modes combine with the ignore-file rules. The [test contract](test/AGENTS.md) owns the complete ignore/parent BDD matrix.
 
 ```sh
 pathsift tree ./project
 pathsift find ./project --ignore-file .gitignore --ignore-file .deployignore
+pathsift find ./project --type file --name '*.ts' --max-depth 3
+pathsift where ./project config.ts
+pathsift where ./project config --contains
+pathsift where ./project '*.ts' --glob
 pathsift tree ./project --no-global-ignore
 pathsift tree ./project/sub --parent ./project
 pathsift tree ./src --parent ""  # from this repository's root
@@ -147,8 +161,7 @@ the [Bash builtin manual](https://www.gnu.org/software/bash/manual/html_node/Bou
 
 ## Output, export, and editor behavior
 
-`manifest` writes only JSON on stdout; errors use stderr and a nonzero exit status. Other commands write text. An
-interactive TTY uses Ink/React for text and help; redirected output remains plain, and JSON is never styled.
+On success, `manifest` writes valid JSON on stdout. A later scan error can leave earlier JSON fragments on stdout; the error goes to stderr with a nonzero status. Help and completed text results use Ink/React on suitable interactive terminals; streamed text is plain except for the tree root. Redirected output and JSON have no TTY styling.
 
 `cp` accepts a destination directory that is absent or empty. `archive` accepts a destination file that is absent or empty. A nonempty destination fails before the source walk. A destination inside the source is permitted: the verified empty target itself is skipped during the one ignore-aware traversal, so `cp c/ c/a/` and `archive c/ c/a.tar` cannot include their own output. Symlinks are copied or archived as links.
 

@@ -1,3 +1,5 @@
+import type { ContentKind } from './content-kind.ts';
+
 export interface WalkEntry {
   path: string;
   fullPath: string;
@@ -5,6 +7,7 @@ export interface WalkEntry {
   size: number;
   mode: number;
   mtime: Date;
+  lastSibling?: boolean;
 }
 
 export interface WalkOptions {
@@ -14,6 +17,8 @@ export interface WalkOptions {
   ignoreEnabled: boolean;
   globalEnabled: boolean;
   skipPath?: string;
+  maxDepth?: number;
+  treeOrder?: boolean;
 }
 
 export interface CommandPorts {
@@ -25,6 +30,7 @@ export interface CommandPorts {
   openSource(root: string): Promise<{ close(): Promise<void> }>;
   prepareDestination(source: string, destination: string, kind: 'directory' | 'file'): Promise<{ existed: boolean; skipPath?: string }>;
   hash(file: string): Promise<string>;
+  classifyFile(file: string, size: number): Promise<ContentKind>;
   digest(text: string): string;
   copy(entries: readonly WalkEntry[], destination: string, bufferLimitBytes: number): Promise<string>;
   archive(entries: readonly WalkEntry[], destination: string, bufferLimitBytes: number): Promise<string>;

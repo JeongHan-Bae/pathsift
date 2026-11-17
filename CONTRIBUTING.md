@@ -1,6 +1,6 @@
 # Contributing
 
-This document owns the commit-message format, pull-request summary, review expectations, and final handoff evidence for pathsift. Read [AGENTS.md](AGENTS.md) for behavior and architecture boundaries, [test/AGENTS.md](test/AGENTS.md) for test coverage, [docs/development.md](docs/development.md) for local commands and CI, [docs/build.md](docs/build.md) for package contents, and [docs/release.md](docs/release.md) for publication. Keep implementation, tests, and owning documentation for one contract in the same change.
+This document owns the commit-message format, pull-request summary, review expectations, and final handoff evidence for pathsift. Read [AGENTS.md](AGENTS.md) for behavior and architecture boundaries, [test/AGENTS.md](test/AGENTS.md) for test coverage, [docs/development.md](docs/development.md) for local commands and CI, [docs/build.md](docs/build.md) for package contents, [docs/content-types.md](docs/content-types.md) for content classification, and [docs/release.md](docs/release.md) for publication. Keep implementation, tests, and owning documentation for one contract in the same change.
 
 ## Development flow
 

@@ -46,8 +46,8 @@ function allowed(absPath: string, isDir: boolean, scopes: Scope[]) {
 }
 
 export async function* walk(root: string, {
-  ignoreFiles = ['.gitignore'], globalPath, parentPath, skipPath,
-  ignoreEnabled = true, globalEnabled = true
+  ignoreFiles = ['.gitignore'], globalPath, parentPath, skipPath, maxDepth,
+  ignoreEnabled = true, globalEnabled = true, treeOrder = false
 }: Partial<WalkOptions> = {}): AsyncGenerator<WalkEntry> {
   root = path.resolve(root);
   const stat = await fs.lstat(root);
@@ -71,7 +71,8 @@ export async function* walk(root: string, {
       directory = path.join(directory, next);
     }
   }
-  async function* descend(dir: string, inheritedScopes: Scope[] = scopes): AsyncGenerator<WalkEntry> {
+  async function* descend(dir: string, inheritedScopes: Scope[] = scopes, depth = 0): AsyncGenerator<WalkEntry> {
+    if (maxDepth !== undefined && depth >= maxDepth) return;
     const attached = [];
     if (ignoreEnabled) {
       for (const name of ignoreFiles) {
@@ -82,6 +83,7 @@ export async function* walk(root: string, {
     const currentScopes = inheritedScopes.concat(attached);
     const dirents = await fs.readdir(dir, { withFileTypes: true });
     dirents.sort((a, b) => a.name.localeCompare(b.name, 'en'));
+    const visible: Array<{ entry: (typeof dirents)[number]; fullPath: string; rel: string; kind: WalkEntry['kind']; decision: ReturnType<typeof allowed> }> = [];
     for (const entry of dirents) {
       const fullPath = path.join(dir, entry.name);
       const rel = toPosix(path.relative(root, fullPath));
@@ -91,14 +93,18 @@ export async function* walk(root: string, {
       if (!decision.accepted) continue;
       const kind: WalkEntry['kind'] | 'other' = isDir ? 'dir' : entry.isSymbolicLink() ? 'symlink' : entry.isFile() ? 'file' : 'other';
       if (kind === 'other') continue;
+      visible.push({ entry, fullPath, rel, kind, decision });
+    }
+    if (treeOrder) visible.sort((a, b) => Number(b.kind === 'dir') - Number(a.kind === 'dir') || a.entry.name.localeCompare(b.entry.name, 'en'));
+    for (const [index, { fullPath, rel, kind, decision }] of visible.entries()) {
       const metadata = await fs.lstat(fullPath);
-      yield { path: rel, fullPath, kind, size: metadata.size, mode: metadata.mode, mtime: metadata.mtime };
-      if (isDir) {
+      yield { path: rel, fullPath, kind, size: metadata.size, mode: metadata.mode, mtime: metadata.mtime, lastSibling: treeOrder ? index === visible.length - 1 : undefined };
+      if (kind === 'dir') {
         const childScopes = currentScopes.map(s => {
           const override = decision.overridden.find(item => item.scope === s);
           return override ? scope(s.base, s.text + '\n!' + override.rulePath, createIgnore!) : s;
         });
-        yield* descend(fullPath, childScopes);
+        yield* descend(fullPath, childScopes, depth + 1);
       }
     }
   }

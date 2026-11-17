@@ -1,12 +1,14 @@
 import type { CommandPorts, WalkEntry } from '../core/ports.ts';
 import fs from 'node:fs';
 import { promises as fsp } from 'node:fs';
+import type { FileHandle } from 'node:fs/promises';
 import path from 'node:path';
 import { Writable } from 'node:stream';
-import { once } from 'node:events';
 import { createHash } from 'node:crypto';
 import { walk, within } from './ignore-walker.ts';
 import { useMemoryBuffer } from '../core/buffer-policy.ts';
+import { classifyFile } from './content-classifier.ts';
+import { writeArchive, type ArchiveFormat } from './archive-streams.ts';
 
 const errorCode = (error: unknown) => (error as NodeJS.ErrnoException)?.code;
 
@@ -26,43 +28,48 @@ async function realDestination(dest: string): Promise<string> {
 }
 
 async function emptyArchiveState(dest: string): Promise<{ existed: boolean }> {
+  let stat;
   try {
-    const stat = await fsp.lstat(dest);
-    if (!stat.isFile()) throw new Error(`Output must be an empty regular file: ${dest}`);
-    if (stat.size !== 0) throw new Error(`Output is not empty: ${dest}`);
-    return { existed: true };
+    stat = await fsp.lstat(dest);
   } catch (error) {
     if (errorCode(error) === 'ENOENT') return { existed: false };
     throw error;
   }
+  if (!stat.isFile()) throw new Error(`Output must be an empty regular file: ${dest}`);
+  if (stat.size !== 0) throw new Error(`Output is not empty: ${dest}`);
+  return { existed: true };
 }
 
 async function emptyDirectoryState(dest: string): Promise<{ existed: boolean }> {
+  let stat;
   try {
-    const stat = await fsp.lstat(dest);
-    if (!stat.isDirectory()) throw new Error(`Destination must be an empty directory: ${dest}`);
-    if ((await fsp.readdir(dest)).length) throw new Error(`Destination is not empty: ${dest}`);
-    return { existed: true };
+    stat = await fsp.lstat(dest);
   } catch (error) {
     if (errorCode(error) === 'ENOENT') return { existed: false };
     throw error;
   }
+  if (!stat.isDirectory()) throw new Error(`Destination must be an empty directory: ${dest}`);
+  if ((await fsp.readdir(dest)).length) throw new Error(`Destination is not empty: ${dest}`);
+  return { existed: true };
 }
 
 async function ensureParents(directory: string): Promise<string[]> {
   const missing: string[] = [];
   let cursor = directory;
   while (true) {
+    let stat;
     try {
-      if (!(await fsp.stat(cursor)).isDirectory()) throw new Error(`Parent is not a directory: ${cursor}`);
-      break;
+      stat = await fsp.stat(cursor);
     } catch (error) {
       if (errorCode(error) !== 'ENOENT') throw error;
       missing.unshift(cursor);
       const parent = path.dirname(cursor);
       if (parent === cursor) throw error;
       cursor = parent;
+      continue;
     }
+    if (!stat.isDirectory()) throw new Error(`Parent is not a directory: ${cursor}`);
+    break;
   }
   const created: string[] = [];
   try {
@@ -160,32 +167,19 @@ class MemoryArchive extends Writable {
   }
 }
 
-async function writeArchive(entries: readonly WalkEntry[], zipped: boolean, gzipped: boolean, output: Writable, completedEvent: 'finish' | 'close'): Promise<number> {
-  const { ZipArchive, TarArchive } = await import('archiver');
-  const archive = zipped ? new ZipArchive({ zlib: { level: 6 } }) :
-    new TarArchive({ gzip: gzipped, gzipOptions: { level: 6 } });
-  const completion = new Promise<void>((resolve, reject) => {
-    output.once(completedEvent, resolve);
-    output.once('error', reject);
-    archive.once('error', reject);
-    archive.once('warning', reject);
-  });
-  void completion.catch(() => {});
-  archive.pipe(output);
-  try {
-    for (const entry of entries) {
-      if (entry.kind === 'file') archive.file(entry.fullPath, { name: entry.path });
-      else if (entry.kind === 'dir') archive.append(Buffer.alloc(0), { name: entry.path + '/', type: 'directory' });
-      else if (entry.kind === 'symlink') archive.symlink(entry.path, await fsp.readlink(entry.fullPath), entry.mode & 0o777);
-    }
-    await archive.finalize();
-    await completion;
-    return archive.pointer();
-  } catch (error) {
-    archive.abort();
-    output.destroy();
-    if (!output.closed) await once(output, 'close');
-    throw error;
+async function ensureOpenFileIsEmpty(handle: FileHandle, dest: string, closeOnFailure = false): Promise<void> {
+  if ((await handle.stat()).size !== 0) {
+    if (closeOnFailure) await handle.close();
+    throw new Error(`Output is not empty: ${dest}`);
+  }
+}
+
+async function writeAll(handle: FileHandle, chunk: Buffer): Promise<void> {
+  let offset = 0;
+  while (offset < chunk.length) {
+    const { bytesWritten } = await handle.write(chunk, offset, chunk.length - offset);
+    if (bytesWritten < 1) throw new Error('Archive write made no progress');
+    offset += bytesWritten;
   }
 }
 
@@ -198,16 +192,9 @@ async function publishMemoryArchive(chunks: readonly Buffer[], dest: string, exi
     const handle = await fsp.open(dest, existed ? 'r+' : 'wx');
     opened = true;
     try {
-      if (existed && (await handle.stat()).size !== 0) throw new Error(`Output is not empty: ${dest}`);
+      if (existed) await ensureOpenFileIsEmpty(handle, dest);
       writing = true;
-      for (const chunk of chunks) {
-        let offset = 0;
-        while (offset < chunk.length) {
-          const { bytesWritten } = await handle.write(chunk, offset, chunk.length - offset);
-          if (bytesWritten < 1) throw new Error('Archive write made no progress');
-          offset += bytesWritten;
-        }
-      }
+      for (const chunk of chunks) await writeAll(handle, chunk);
     } finally { await handle.close(); }
   } catch (error) {
     if (opened && !existed) await fsp.rm(dest, { force: true });
@@ -224,8 +211,9 @@ export function createNodeFilesystemPorts(): CommandPorts {
     async isWithin(ancestor: string, candidate: string) {
       return within(await fsp.realpath(ancestor), await fsp.realpath(candidate));
     },
-    isSimpleFilename: (name: string) => typeof name === 'string' && Boolean(name) && name !== '.' && name !== '..' && name === path.basename(name),
+    isSimpleFilename: (name: string) => Boolean(name) && name !== '.' && name !== '..' && name === path.basename(name),
     walk,
+    classifyFile,
     openSource: fsp.opendir,
     digest: (text: string) => createHash('sha256').update(text, 'utf8').digest('hex'),
     async prepareDestination(source: string, dest: string, kind: 'directory' | 'file') {
@@ -275,11 +263,12 @@ export function createNodeFilesystemPorts(): CommandPorts {
       const tarred = lowered.endsWith('.tar');
       const gzipped = lowered.endsWith('.tar.gz') || lowered.endsWith('.tgz');
       if (!zipped && !tarred && !gzipped) throw new Error('Archive destination must end with .zip, .tar, .tar.gz or .tgz');
+      const format: ArchiveFormat = zipped ? 'zip' : gzipped ? 'tar.gz' : 'tar';
       const original = await emptyArchiveState(dest);
       if (useMemoryBuffer(entries, bufferLimitBytes)) {
         const memory = new MemoryArchive(bufferLimitBytes);
         try {
-          const bytes = await writeArchive(entries, zipped, gzipped, memory, 'finish');
+          const bytes = await writeArchive(entries, format, memory);
           await publishMemoryArchive(memory.chunks, dest, original.existed);
           return `Created ${dest} (${bytes} bytes)`;
         } catch (error) {
@@ -293,13 +282,10 @@ export function createNodeFilesystemPorts(): CommandPorts {
         if (original.existed) await emptyArchiveState(dest);
         const handle = await fsp.open(dest, original.existed ? 'r+' : 'wx');
         opened = true;
-        if (original.existed && (await handle.stat()).size !== 0) {
-          await handle.close();
-          throw new Error(`Output is not empty: ${dest}`);
-        }
+        if (original.existed) await ensureOpenFileIsEmpty(handle, dest, true);
         const output = handle.createWriteStream();
         writing = true;
-        const bytes = await writeArchive(entries, zipped, gzipped, output, 'close');
+        const bytes = await writeArchive(entries, format, output);
         return `Created ${dest} (${bytes} bytes)`;
       } catch (error) {
         if (opened && !original.existed) await fsp.rm(dest, { force: true });

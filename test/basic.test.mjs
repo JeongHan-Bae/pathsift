@@ -4,12 +4,16 @@ import { mkdtemp, mkdir, writeFile, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { walk, within } from '../dist/adapters/ignore-walker.js';
 import { supportsTerminal } from '../dist/adapters/nano.js';
 
-const run = promisify(execFile);
+const run = (command, args) => new Promise((resolve, reject) => {
+  execFile(command, args, { encoding: 'utf8' }, (error, stdout, stderr) => {
+    if (error) reject(Object.assign(error, { stdout, stderr }));
+    else resolve({ stdout, stderr });
+  });
+});
 const bin = fileURLToPath(new URL('../dist/boot/cli-main.js', import.meta.url));
 
 test('destination containment', () => {
