@@ -2,7 +2,7 @@
 
 ## Current state
 
-`pathsift@0.1.0` is published on npm with the `latest` dist-tag; `0.0.1` remains on `alpha`. This checkout is `0.1.1`, pending its next tag-driven release. This is one CLI package: there is no separate Core or CLI publication. The source root is private; the generated tarball under `release-preview/` is the publishable package.
+`pathsift@0.1.0` is published on npm with the `latest` dist-tag; `0.0.1` remains on `alpha`. This commit prepares the `0.1.1` release. The preceding implementation commit `e1988dc` passed the [GitHub CI run](https://github.com/JeongHan-Bae/pathsift/actions/runs/44053784290). This is one CLI package: there is no separate Core or CLI publication. The source root is private; the generated tarball under `release-preview/` is the publishable package.
 
 The installed config and global ignore file are package-local; [build.md](build.md) owns their installation and write-access behavior.
 The [build contract](build.md) owns the production dependency and package-file inventory. Installed-package BDD must validate local WASM classification and ZIP, TAR, and TAR.GZ output. Consumers can inspect the included [content-type rules](content-types.md).
@@ -24,6 +24,6 @@ The complete `verify:release` command and CI matrix are documented in [developme
 
 ## Preparing a release
 
-Update the one package version and lockfile through npm, keep the owning documents current, and run `npm run verify:precommit` after the final change. Review the generated tarball before tagging. Commit the release candidate, create an existing `vX.Y.Z` tag at that commit, and push the tag to run the workflow. Manual dispatch can rerun the workflow for that same existing tag; it cannot publish an untagged branch. The workflow checks npm version uniqueness, so retrying after a successful publish fails safely.
+Update the one package version and lockfile through npm, keep the owning documents current, and run `npm run verify:precommit` after the final change. Review the generated tarball before tagging. Commit the release preparation, create a `vX.Y.Z` tag at that commit, and push the tag to run the workflow. Manual dispatch can rerun the workflow for that same existing tag; it cannot publish an untagged branch. The workflow checks npm version uniqueness, so retrying after a successful publish fails safely.
 
 Direct `npm pack` or `npm publish` from the repository root is refused by its `prepack` and `prepublishOnly` hooks. The release workflow publishes the reviewed generated tarball.
